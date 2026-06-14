@@ -44,7 +44,7 @@ cd "frontend"
 start /B cmd /c "npm run dev"
 
 echo Waiting for servers to initialize...
-timeout /t 5 /nobreak > null
+timeout /t 5 /nobreak > nul
 
 echo Launching Electron desktop shell...
 cd "../electron"
