@@ -19,7 +19,7 @@ os.makedirs(BRAIN_DIR, exist_ok=True)
 MODEL_PROVIDER = os.environ.get("MODEL_PROVIDER", "openai")  # openai or ollama or mock
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
 # OCR configuration (Tesseract fallback)
 TESSERACT_CMD = os.environ.get("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
