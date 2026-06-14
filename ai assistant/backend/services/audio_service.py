@@ -53,13 +53,23 @@ class AudioService:
     def speak(self, text: str):
         """Speak text using SAPI5 TTS engine, run in separate thread to avoid blocking FastAPI."""
         print(f"JARVIS speaking: {text}")
-        if PYTTSX3_AVAILABLE and self.tts_engine:
+        if PYTTSX3_AVAILABLE:
             def _speak():
                 try:
-                    self.tts_engine.say(text)
-                    self.tts_engine.runAndWait()
+                    # Initialize local engine instance inside thread to prevent "run loop already started" error
+                    engine = pyttsx3.init('sapi5')
+                    engine.setProperty('rate', TTS_RATE)
+                    engine.setProperty('volume', TTS_VOLUME)
+                    
+                    voices = engine.getProperty('voices')
+                    for voice in voices:
+                        if "david" in voice.name.lower() or "zira" in voice.name.lower():
+                            engine.setProperty('voice', voice.id)
+                            break
+                    engine.say(text)
+                    engine.runAndWait()
                 except Exception as e:
-                    print(f"TTS execution error: {e}")
+                    print(f"TTS execution error inside thread: {e}")
             t = threading.Thread(target=_speak, daemon=True)
             t.start()
         else:
@@ -119,8 +129,7 @@ class AudioService:
             return
 
         r = sr.Recognizer()
-        # High energy threshold to avoid activating on soft noise
-        r.energy_threshold = 4000
+        # Calibrate dynamically from default threshold to hear normal speech
         r.dynamic_energy_threshold = True
 
         while self.is_listening:
