@@ -1,0 +1,25 @@
+# Node dependencies
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Python cache and files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+
+# JARVIS runtime outputs
+screenshot.png
+ai assistant/electron/icon.png
+ai assistant/electron/node_modules/
+
+# Local configuration
+.env
+*.db
+*.log
