@@ -94,7 +94,7 @@ def query_llm(system_prompt: str, user_prompt: str, temperature: float = 0.2) ->
                 "stream": False,
                 "options": {"temperature": temperature}
             }
-            res = requests.post(url, json=payload, timeout=60)
+            res = requests.post(url, json=payload, timeout=120)
             if res.status_code == 200:
                 data = res.json()
                 return data["message"]["content"]
