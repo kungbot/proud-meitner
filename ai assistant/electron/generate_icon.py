@@ -19,5 +19,10 @@ def main():
     img.save(output_path)
     print(f"Icon saved successfully at: {output_path}")
 
+    ico_path = os.path.join(os.path.dirname(__file__), 'icon.ico')
+    # Save as ICO (supports sizes up to 256x256, but 64x64 is fine)
+    img.save(ico_path, format="ICO")
+    print(f"Icon saved successfully at: {ico_path}")
+
 if __name__ == '__main__':
     main()
