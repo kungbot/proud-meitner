@@ -1,7 +1,7 @@
 @echo off
 title JARVIS AI - Startup Automator
 echo ===================================================
-echo   JARVIS AI Assistant - Starting Setup & Launch
+echo   JARVIS AI Assistant - Starting Setup ^& Launch
 echo ===================================================
 
 echo.
@@ -41,10 +41,10 @@ start /B cmd /c "python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 echo Starting Next.js Dev Server (Port 3000)...
 cd "frontend"
-start /B cmd /c "npm run dev"
+start /B cmd /c "npm run dev -- -p 3000"
 
 echo Waiting for servers to initialize...
-timeout /t 5 /nobreak > nul
+ping 127.0.0.1 -n 6 > nul
 
 echo Launching Electron desktop shell...
 cd "../electron"

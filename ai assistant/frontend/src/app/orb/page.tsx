@@ -3,16 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AILogo, { JarvisState } from '../../components/AILogo';
 
-declare global {
-  interface Window {
-    jarvisAPI?: {
-      isElectron: boolean;
-      toggleDashboard: () => void;
-      setOrbState: (state: string) => void;
-      onToggleVoice: (callback: () => void) => void;
-    };
-  }
-}
 
 export default function OrbPage() {
   const [state, setState] = useState<JarvisState>('idle');

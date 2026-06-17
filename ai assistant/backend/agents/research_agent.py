@@ -1,5 +1,6 @@
 import asyncio
 from backend.agents.browser_agent import BrowserAgent
+from backend.utils.llm import query_llm
 import urllib.parse
 import json
 
@@ -56,9 +57,23 @@ class ResearchAgent:
         report_sections.append("## Conclusion & Recommendations")
         report_sections.append(f"Based on the reviewed articles and references, the consensus regarding '{topic}' highlights key patterns of modern adoption, efficiency gains, and integration best practices. Further detail can be investigated by opening individual links listed above.")
         
-        return "\n".join(report_sections)
+        raw_report = "\n".join(report_sections)
+
+        # 3. Pass through LLM for AI-synthesized summary
+        try:
+            synthesis_prompt = (
+                "You are JARVIS. Synthesize the following research findings into a clear, insightful markdown report. "
+                "Keep the original references and links. Improve clarity, add analysis, and highlight key takeaways. "
+                "Output a well-structured markdown document."
+            )
+            synthesized = query_llm(synthesis_prompt, raw_report)
+            return synthesized
+        except Exception as e:
+            print(f"LLM synthesis failed, returning raw report: {e}")
+            return raw_report
         
     async def compare_technologies(self, tech1: str, tech2: str) -> str:
         """Helper to compare two specific technologies."""
         query = f"difference between {tech1} and {tech2} pros cons"
         return await self.conduct_research(query)
+

@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+import json
 from pathlib import Path
 
 # Add the parent directory of 'backend' to sys.path so we can import 'backend'
@@ -8,6 +9,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any
 
@@ -15,6 +17,9 @@ from backend.config import HOST, PORT, WORKSPACE_DIR
 from backend.agents.orchestrator import OrchestratorAgent
 from backend.services.audio_service import AudioService
 from backend.services.vision_service import VisionService
+from backend.services.settings import SettingsService
+
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="JARVIS Desktop Core", version="1.0.0")
 
@@ -26,6 +31,18 @@ app.add_middleware(
     allow_headers=["*"],
     allow_methods=["*"],
 )
+
+# Serve static files from workspace (e.g., screenshots)
+app.mount("/static", StaticFiles(directory=str(WORKSPACE_DIR)), name="static")
+
+# Load settings from DB at startup and hot-reload config attributes
+settings_service = SettingsService()
+try:
+    all_settings = settings_service.get_all_settings()
+    for key, val in all_settings.items():
+        settings_service._hot_reload(key, val)
+except Exception as e:
+    print(f"Failed to load settings at startup: {e}")
 
 # Shared objects
 orchestrator = OrchestratorAgent()
@@ -96,10 +113,18 @@ class MemoryRequest(BaseModel):
     value: str
     category: str = "general"
 
+class SettingsRequest(BaseModel):
+    model_provider: str
+    model_name: str
+    openai_api_key: str
+    tts_rate: str
+    tts_volume: str
+    ollama_host: str
+
 # HTTP API Endpoints
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
-    result = orchestrator.route_and_execute(req.query)
+    result = await orchestrator.route_and_execute(req.query)
     # If successful response text is present, speak it asynchronously
     if result.get("status") == "success":
         audio.speak(result.get("response", ""))
@@ -107,7 +132,7 @@ async def chat_endpoint(req: ChatRequest):
 
 @app.post("/api/confirm")
 async def confirm_endpoint(req: ConfirmRequest):
-    result = orchestrator.execute_confirmed_action(req.payload)
+    result = await orchestrator.execute_confirmed_action(req.payload)
     if result.get("status") == "success":
         audio.speak(result.get("response", ""))
     return result
@@ -137,6 +162,124 @@ async def delete_memory(key: str):
 @app.get("/api/tasks")
 async def get_tasks():
     return orchestrator.memory.get_tasks_progress(limit=15)
+
+@app.post("/api/chat/stream")
+async def chat_stream_endpoint(req: ChatRequest):
+    async def event_generator():
+        # Log query
+        orchestrator.memory.log_interaction("user", req.query)
+        orchestrator.memory.log_task_status("Orchestrator", "thinking", f"Processing streaming query: {req.query}")
+        
+        intent_info = orchestrator.classify_intent(req.query)
+        intent = intent_info.get("intent", "chat")
+        parameters = intent_info.get("parameters", {})
+        
+        # Security check
+        needs_confirm, action_type, details = orchestrator.check_security(intent, parameters)
+        if needs_confirm:
+            orchestrator.memory.log_task_status("Orchestrator", "waiting_approval", f"Requires approval: {details}")
+            yield f"data: {json.dumps({'type': 'confirmation', 'status': 'needs_confirmation', 'action_type': action_type, 'action_details': details, 'payload': {'intent': intent, 'parameters': parameters, 'query': req.query}})}\n\n"
+            return
+            
+        if intent != "chat":
+            try:
+                result = await orchestrator.execute_intent(intent, parameters, req.query)
+                response_text = result.get("response", "Action completed.")
+                orchestrator.memory.log_interaction("assistant", response_text)
+                orchestrator.memory.log_task_status("Orchestrator", "completed", f"Finished {intent} task.")
+                yield f"data: {json.dumps({'type': 'result', 'status': 'success', 'intent': intent, 'response': response_text, 'data': result.get('data')})}\n\n"
+                audio.speak(response_text)
+            except Exception as e:
+                err_msg = f"Failed to execute task: {str(e)}"
+                orchestrator.memory.log_task_status("Orchestrator", "failed", err_msg)
+                yield f"data: {json.dumps({'type': 'error', 'status': 'error', 'response': f'Error: {str(e)}'})}\n\n"
+        else:
+            # Stream LLM chat fallback with active window context & semantic memory
+            system_prompt = orchestrator.get_chat_system_prompt(req.query)
+            context = orchestrator.memory.get_conversation_context(limit=10)
+            formatted_prompt = ""
+            for msg in context:
+                formatted_prompt += f"{msg['role'].capitalize()}: {msg['content']}\n"
+            formatted_prompt += f"User: {req.query}\nAssistant:"
+            
+            from backend.utils.llm import stream_llm
+            full_response = ""
+            sentence_buffer = ""
+            try:
+                for chunk in stream_llm(system_prompt, formatted_prompt):
+                    full_response += chunk
+                    sentence_buffer += chunk
+                    yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+                    
+                    # Split sentences on-the-fly and speak as they are completed
+                    if any(p in chunk for p in ['.', '!', '?']):
+                        last_punc_idx = max(
+                            sentence_buffer.rfind('.'), 
+                            sentence_buffer.rfind('!'), 
+                            sentence_buffer.rfind('?')
+                        )
+                        if last_punc_idx != -1:
+                            sentence_to_speak = sentence_buffer[:last_punc_idx + 1].strip()
+                            if sentence_to_speak:
+                                audio.speak(sentence_to_speak)
+                            sentence_buffer = sentence_buffer[last_punc_idx + 1:]
+                    
+                    await asyncio.sleep(0.005)
+                
+                # Speak any remaining text at the end
+                remaining = sentence_buffer.strip()
+                if remaining:
+                    audio.speak(remaining)
+                
+                # Success
+                orchestrator.memory.log_interaction("assistant", full_response)
+                orchestrator.memory.log_task_status("Orchestrator", "completed", "Finished streaming chat task.")
+                yield f"data: {json.dumps({'type': 'result', 'status': 'success', 'response': full_response})}\n\n"
+            except Exception as e:
+                err_msg = f"Streaming failed: {str(e)}"
+                orchestrator.memory.log_task_status("Orchestrator", "failed", err_msg)
+                yield f"data: {json.dumps({'type': 'error', 'status': 'error', 'response': f'Error: {str(e)}'})}\n\n"
+ 
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/api/history")
+async def get_history():
+    return orchestrator.memory.get_recent_interactions(limit=20)
+
+@app.delete("/api/history")
+async def clear_history():
+    success = orchestrator.memory.clear_interaction_logs()
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to clear history.")
+    return {"status": "success"}
+
+@app.get("/api/settings")
+async def get_settings():
+    return settings_service.get_all_settings()
+
+@app.put("/api/settings")
+async def update_settings(req: SettingsRequest):
+    settings_dict = req.dict()
+    for key, val in settings_dict.items():
+        settings_service.update_setting(key, str(val))
+    return {"status": "success"}
+
+@app.get("/api/models")
+async def get_models():
+    provider = settings_service.get_setting("model_provider")
+    if provider == "ollama":
+        import requests
+        from backend.config import OLLAMA_HOST
+        try:
+            res = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=3)
+            if res.status_code == 200:
+                models = res.json().get("models", [])
+                return {"models": [m["name"] for m in models]}
+        except Exception:
+            pass
+        return {"models": ["llama3", "llama3.2:1b", "mistral"]}
+    else:
+        return {"models": ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]}
 
 @app.post("/api/screenshot")
 async def capture_screen():
@@ -173,7 +316,7 @@ async def voice_websocket(websocket: WebSocket):
                     await websocket.send_json({"type": "transcription", "text": transcription})
                     # Run orchestrator
                     await websocket.send_json({"type": "status", "state": "thinking"})
-                    result = orchestrator.route_and_execute(transcription)
+                    result = await orchestrator.route_and_execute(transcription)
                     
                     if result.get("status") == "success":
                         audio.speak(result.get("response", ""))
@@ -192,7 +335,7 @@ async def voice_websocket(websocket: WebSocket):
             elif msg_type == "chat_message":
                 text = data.get("text", "")
                 await websocket.send_json({"type": "status", "state": "thinking"})
-                result = orchestrator.route_and_execute(text)
+                result = await orchestrator.route_and_execute(text)
                 
                 if result.get("status") == "success":
                     audio.speak(result.get("response", ""))

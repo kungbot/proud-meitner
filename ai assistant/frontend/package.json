@@ -15,7 +15,9 @@
     "framer-motion": "^11.2.6",
     "lucide-react": "^0.379.0",
     "clsx": "^2.1.1",
-    "tailwind-merge": "^2.3.0"
+    "tailwind-merge": "^2.3.0",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
     "typescript": "^5.4.5",

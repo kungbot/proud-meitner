@@ -8,6 +8,12 @@ from backend.config import WORKSPACE_DIR
 class SystemAgent:
     def __init__(self):
         self.workspace_dir = WORKSPACE_DIR
+        self.current_window = {"title": "Unknown", "process": "Unknown"}
+        
+        # Start background window tracker thread
+        import threading
+        self.tracker_thread = threading.Thread(target=self._window_tracker_loop, daemon=True)
+        self.tracker_thread.start()
 
     def lock_screen(self) -> bool:
         """Lock the Windows computer."""
@@ -166,3 +172,118 @@ class SystemAgent:
             return "Execution timed out (15 seconds limit)."
         except Exception as e:
             return f"Execution error: {str(e)}"
+
+    def get_active_window_info(self) -> dict:
+        """Fetch active foreground window title and process name using Windows Win32 APIs."""
+        import ctypes
+        from ctypes import wintypes
+        
+        try:
+            # Win32 API functions
+            GetForegroundWindow = ctypes.windll.user32.GetForegroundWindow
+            GetWindowTextLengthW = ctypes.windll.user32.GetWindowTextLengthW
+            GetWindowTextW = ctypes.windll.user32.GetWindowTextW
+            GetWindowThreadProcessId = ctypes.windll.user32.GetWindowThreadProcessId
+            
+            hwnd = GetForegroundWindow()
+            if not hwnd:
+                return {"title": "Unknown", "process": "Unknown"}
+                
+            # Get Title
+            length = GetWindowTextLengthW(hwnd)
+            title_buf = ctypes.create_unicode_buffer(length + 1)
+            GetWindowTextW(hwnd, title_buf, length + 1)
+            title = title_buf.value
+            
+            # Get Process Name
+            pid = wintypes.DWORD()
+            GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            
+            process_name = "Unknown"
+            try:
+                import psutil
+                proc = psutil.Process(pid.value)
+                process_name = proc.name()
+            except Exception:
+                pass
+                
+            return {"title": title, "process": process_name}
+        except Exception:
+            return {"title": "Unknown", "process": "Unknown"}
+
+    def _window_tracker_loop(self):
+        """Periodically polls the active foreground window state."""
+        import time
+        while True:
+            try:
+                self.current_window = self.get_active_window_info()
+            except Exception as e:
+                print(f"Error in window tracker loop: {e}")
+            time.sleep(3)
+
+    def control_media(self, action: str) -> bool:
+        """Simulate media key presses on Windows (play, pause, next, prev)."""
+        import ctypes
+        
+        VK_MEDIA_PLAY_PAUSE = 0xB3
+        VK_MEDIA_NEXT_TRACK = 0xB0
+        VK_MEDIA_PREV_TRACK = 0xB1
+        
+        mapping = {
+            "play": VK_MEDIA_PLAY_PAUSE,
+            "pause": VK_MEDIA_PLAY_PAUSE,
+            "play_pause": VK_MEDIA_PLAY_PAUSE,
+            "next": VK_MEDIA_NEXT_TRACK,
+            "skip": VK_MEDIA_NEXT_TRACK,
+            "prev": VK_MEDIA_PREV_TRACK,
+            "previous": VK_MEDIA_PREV_TRACK
+        }
+        
+        vk = mapping.get(action.lower().strip())
+        if vk:
+            try:
+                # Press key
+                ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
+                # Release key
+                ctypes.windll.user32.keybd_event(vk, 0, 2, 0)
+                return True
+            except Exception as e:
+                print(f"Error executing media control key event: {e}")
+        return False
+
+    def get_recent_workspace_changes(self) -> list:
+        """Scan workspace recursively for files changed in the last 24 hours."""
+        import time
+        from pathlib import Path
+        
+        recent_files = []
+        now = time.time()
+        one_day = 24 * 60 * 60
+        
+        # Avoid scanning system files or node_modules / .git
+        ignore_dirs = {".git", "node_modules", ".next", "__pycache__", "out", "dist", "build"}
+        
+        try:
+            for root, dirs, files in os.walk(self.workspace_dir):
+                # Filter out ignored directories in-place to prevent traversing them
+                dirs[:] = [d for d in dirs if d not in ignore_dirs]
+                
+                for file in files:
+                    file_path = Path(root) / file
+                    try:
+                        mtime = file_path.stat().st_mtime
+                        if now - mtime < one_day:
+                            rel_path = file_path.relative_to(self.workspace_dir)
+                            recent_files.append({
+                                "name": file,
+                                "path": str(rel_path).replace("\\", "/"),
+                                "modified_at": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))
+                            })
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"Error scanning workspace changes: {e}")
+            
+        # Sort by mtime descending and return top 5
+        recent_files = sorted(recent_files, key=lambda x: x.get("modified_at", ""), reverse=True)
+        return recent_files[:5]

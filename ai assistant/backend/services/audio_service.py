@@ -23,57 +23,61 @@ except ImportError:
 class AudioService:
     def __init__(self, on_wake_word_detected=None):
         self.on_wake_word_detected = on_wake_word_detected
-        self.tts_engine = None
         self.is_listening = False
         self.listening_thread = None
         self.speech_queue = queue.Queue()
         
-        self.init_tts()
+        # Start dedicated TTS worker thread
+        self.tts_queue = queue.Queue()
+        self.tts_thread = threading.Thread(target=self._tts_worker, daemon=True)
+        self.tts_thread.start()
 
-    def init_tts(self):
-        """Initialise Windows SAPI5 Speech Engine."""
+    def _tts_worker(self):
+        """Dedicated background thread for executing SAPI5 TTS commands sequentially."""
         global PYTTSX3_AVAILABLE
-        if PYTTSX3_AVAILABLE:
+        if not PYTTSX3_AVAILABLE:
+            return
+            
+        import ctypes
+        # Initialize COM for this thread
+        ctypes.windll.ole32.CoInitialize(None)
+        
+        try:
+            engine = pyttsx3.init('sapi5')
+            engine.setProperty('rate', TTS_RATE)
+            engine.setProperty('volume', TTS_VOLUME)
+            
+            # Try setting to a male/futuristic voice if available
+            voices = engine.getProperty('voices')
+            for voice in voices:
+                if "david" in voice.name.lower() or "zira" in voice.name.lower():
+                    engine.setProperty('voice', voice.id)
+                    break
+            self.tts_engine = engine
+        except Exception as e:
+            print(f"Failed to initialize pyttsx3 in worker thread: {e}")
+            PYTTSX3_AVAILABLE = False
+            return
+
+        while True:
             try:
-                # SAPI5 is the default on Windows
-                self.tts_engine = pyttsx3.init('sapi5')
-                self.tts_engine.setProperty('rate', TTS_RATE)
-                self.tts_engine.setProperty('volume', TTS_VOLUME)
-                
-                # Try setting to a male/futuristic voice if available
-                voices = self.tts_engine.getProperty('voices')
-                for voice in voices:
-                    if "david" in voice.name.lower() or "zira" in voice.name.lower():
-                        self.tts_engine.setProperty('voice', voice.id)
-                        break
+                text = self.tts_queue.get()
+                if text is None:
+                    break
+                self.tts_engine.say(text)
+                self.tts_engine.runAndWait()
+                self.tts_queue.task_done()
             except Exception as e:
-                print(f"Failed to load pyttsx3 voice engine: {e}")
-                PYTTSX3_AVAILABLE = False
+                print(f"TTS Worker execution error: {e}")
 
     def speak(self, text: str):
-        """Speak text using SAPI5 TTS engine, run in separate thread to avoid blocking FastAPI."""
+        """Add text to the TTS queue to be spoken by the dedicated background thread."""
         print(f"JARVIS speaking: {text}")
         if PYTTSX3_AVAILABLE:
-            def _speak():
-                try:
-                    # Initialize local engine instance inside thread to prevent "run loop already started" error
-                    engine = pyttsx3.init('sapi5')
-                    engine.setProperty('rate', TTS_RATE)
-                    engine.setProperty('volume', TTS_VOLUME)
-                    
-                    voices = engine.getProperty('voices')
-                    for voice in voices:
-                        if "david" in voice.name.lower() or "zira" in voice.name.lower():
-                            engine.setProperty('voice', voice.id)
-                            break
-                    engine.say(text)
-                    engine.runAndWait()
-                except Exception as e:
-                    print(f"TTS execution error inside thread: {e}")
-            t = threading.Thread(target=_speak, daemon=True)
-            t.start()
+            self.tts_queue.put(text)
         else:
             print("[TTS Mode Disabled or Missing Libraries]")
+
 
     def listen_for_speech(self, timeout: int = 5) -> str:
         """Capture microphone audio and perform standard recognition."""

@@ -1,9 +1,13 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
 # Load environment variables from .env file at workspace root
-load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+except ImportError:
+    # python-dotenv not installed yet; env vars must be set manually
+    pass
 
 # Base Paths
 BASE_DIR = Path(__file__).resolve().parent

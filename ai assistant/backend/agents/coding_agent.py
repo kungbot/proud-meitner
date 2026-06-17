@@ -59,7 +59,7 @@ class CodingAgent:
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(refactored_code.strip())
                 
-            return f"Successfully refactored {full_path.name} based on: '{instruction}'."
+            return f"Refactored {full_path.name}.\n\n**Original:**\n```\n{code_content[:500]}\n```\n\n**Refactored:**\n```\n{refactored_code[:500]}\n```"
         except Exception as e:
             return f"Error refactoring code: {e}"
 

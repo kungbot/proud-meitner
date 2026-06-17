@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, screen, globalShortcut, Notification } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -35,7 +35,7 @@ function createDashboardWindow() {
   dashboardWin = new BrowserWindow({
     width: 1200,
     height: 800,
-    show: false,
+    show: true,
     frame: false, // Custom header
     backgroundColor: '#020617', // match slate-950
     webPreferences: {
@@ -98,7 +98,7 @@ function createTray() {
   
   const contextMenu = Menu.buildFromTemplate([
     { 
-      label: 'Show Dashboard', 
+      label: 'Show Dashboard (Ctrl+Space)', 
       click: () => {
         if (dashboardWin) {
           dashboardWin.show();
@@ -175,6 +175,12 @@ ipcMain.on('quit-app', () => {
   app.quit();
 });
 
+ipcMain.on('show-notification', (event, { title, body }) => {
+  if (Notification.isSupported()) {
+    new Notification({ title, body, icon: path.join(__dirname, 'icon.png') }).show();
+  }
+});
+
 app.on('ready', () => {
   startBackend();
   createDashboardWindow();
@@ -187,9 +193,25 @@ app.on('ready', () => {
   } catch (e) {
     console.log("Could not load tray icon. Proceeding without tray tray: ", e.message);
   }
+
+  // Register global hotkey: Ctrl+Space to toggle dashboard
+  const ret = globalShortcut.register('CommandOrControl+Space', () => {
+    if (dashboardWin) {
+      if (dashboardWin.isVisible()) {
+        dashboardWin.hide();
+      } else {
+        dashboardWin.show();
+        dashboardWin.focus();
+      }
+    }
+  });
+  if (!ret) {
+    console.log('Global shortcut registration failed (Ctrl+Space may be in use by another app)');
+  }
 });
 
 app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
   if (pythonProcess) {
     console.log("Terminating Python backend process...");
     pythonProcess.kill('SIGTERM');

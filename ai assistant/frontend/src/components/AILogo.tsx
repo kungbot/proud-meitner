@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 
 export type JarvisState = 'idle' | 'listening' | 'thinking' | 'executing' | 'speaking';
 
@@ -10,6 +10,8 @@ interface AILogoProps {
 }
 
 export default function AILogo({ state, size = 120, className = "", onClick }: AILogoProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   // Map states to color palettes
   const colorMap = {
     idle: {
@@ -41,6 +43,81 @@ export default function AILogo({ state, size = 120, className = "", onClick }: A
 
   const colors = colorMap[state] || colorMap.idle;
 
+  // Siri-style multi-frequency sinusoidal wave visualizer loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || state === 'idle') return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    let animationFrameId: number;
+    let phase = 0;
+    
+    // Scale for high DPI screens
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    ctx.scale(dpr, dpr);
+    
+    const draw = () => {
+      ctx.clearRect(0, 0, size, size);
+      
+      phase += 0.08;
+      
+      const centerX = size / 2;
+      const centerY = size / 2;
+      
+      // Determine wave parameters based on state
+      let numWaves = 3;
+      let maxAmplitude = 0;
+      
+      if (state === 'speaking') {
+        maxAmplitude = 12;
+        numWaves = 4;
+      } else if (state === 'listening') {
+        maxAmplitude = 9;
+        numWaves = 3;
+      } else if (state === 'thinking') {
+        maxAmplitude = 3;
+        numWaves = 2;
+      } else if (state === 'executing') {
+        maxAmplitude = 5;
+        numWaves = 3;
+      }
+      
+      for (let i = 0; i < numWaves; i++) {
+        ctx.beginPath();
+        const wavePhase = phase * (1 + i * 0.12) * (state === 'speaking' ? 1.4 : 1.0);
+        const opacity = 0.2 + (i * 0.15);
+        ctx.strokeStyle = colors.primary + Math.round(opacity * 255).toString(16).padStart(2, '0');
+        ctx.lineWidth = i === numWaves - 1 ? 1.8 : 0.8;
+        
+        for (let x = 15; x < size - 15; x++) {
+          const normX = (x - centerX) / (size / 2 - 15);
+          // Bell curve envelope to taper wave amplitude at the edges
+          const envelope = Math.pow(1 - normX * normX, 2);
+          const frequency = 0.07 + (i * 0.02);
+          const y = centerY + Math.sin(x * frequency + wavePhase) * maxAmplitude * envelope;
+          
+          if (x === 15) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
+      }
+      
+      animationFrameId = requestAnimationFrame(draw);
+    };
+    
+    draw();
+    
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [state, size, colors.primary]);
+
   return (
     <div 
       onClick={onClick}
@@ -54,6 +131,15 @@ export default function AILogo({ state, size = 120, className = "", onClick }: A
           background: `radial-gradient(circle, ${colors.primary} 0%, ${colors.secondary} 40%, transparent 70%)` 
         }}
       />
+
+      {/* Dynamic Voice Visualizer Canvas */}
+      {state !== 'idle' && (
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 z-20 pointer-events-none"
+          style={{ width: size, height: size }}
+        />
+      )}
 
       {/* SVG Arc Reactor Core */}
       <svg 
@@ -164,20 +250,6 @@ export default function AILogo({ state, size = 120, className = "", onClick }: A
           opacity="0.9"
         />
       </svg>
-
-      {/* Decorative Wave Rings when Speaking/Listening */}
-      {(state === 'speaking' || state === 'listening') && (
-        <>
-          <div 
-            className="absolute inset-0 rounded-full border border-jarvis-primary animate-ping opacity-25" 
-            style={{ borderColor: colors.primary, animationDuration: '1.5s' }}
-          />
-          <div 
-            className="absolute inset-0 rounded-full border border-jarvis-secondary animate-ping opacity-15 scale-125" 
-            style={{ borderColor: colors.secondary, animationDuration: '2.5s' }}
-          />
-        </>
-      )}
     </div>
   );
 }

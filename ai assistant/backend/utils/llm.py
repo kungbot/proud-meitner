@@ -144,3 +144,140 @@ export default function DashboardCard({ title, value, percentage }) {
 }"""
     else:
         return f"[JARVIS Core Mock Response]\nI received your query: '{user_prompt}'.\nPlease configure an OpenAI API key or start an Ollama model locally for advanced AI reasoning."
+
+
+def stream_llm(system_prompt: str, user_prompt: str, temperature: float = 0.2):
+    """Generator that yields LLM response chunks for streaming. Falls back through providers."""
+    
+    # Try OpenAI / OpenRouter streaming
+    if MODEL_PROVIDER == "openai" and OPENAI_API_KEY:
+        try:
+            if OPENAI_API_KEY.startswith("sk-or-"):
+                client = OpenAI(
+                    api_key=OPENAI_API_KEY,
+                    base_url="https://openrouter.ai/api/v1",
+                    default_headers={
+                        "HTTP-Referer": "http://localhost:3000",
+                        "X-Title": "JARVIS OS Assistant"
+                    },
+                    http_client=httpx.Client(trust_env=False)
+                )
+                model = "openai/gpt-4o-mini" if MODEL_NAME == "gpt-4o-mini" else MODEL_NAME
+            else:
+                client = OpenAI(
+                    api_key=OPENAI_API_KEY,
+                    http_client=httpx.Client(trust_env=False)
+                )
+                model = MODEL_NAME
+
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=temperature,
+                stream=True
+            )
+            for chunk in response:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    yield delta.content
+            return
+        except Exception as e:
+            print(f"OpenAI/OpenRouter Streaming Failed: {e}. Falling back.")
+
+    # Try Ollama streaming
+    if MODEL_PROVIDER == "ollama" or (MODEL_PROVIDER == "openai" and not OPENAI_API_KEY):
+        try:
+            target_model = MODEL_NAME if MODEL_NAME != "gpt-4o-mini" else "llama3"
+            check_and_pull_ollama_model(target_model)
+
+            url = f"{OLLAMA_HOST}/api/chat"
+            payload = {
+                "model": target_model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "stream": True,
+                "options": {"temperature": temperature}
+            }
+            with requests.post(url, json=payload, timeout=120, stream=True) as res:
+                if res.status_code == 200:
+                    for line in res.iter_lines():
+                        if line:
+                            data = json.loads(line)
+                            content = data.get("message", {}).get("content", "")
+                            if content:
+                                yield content
+                    return
+        except Exception as e:
+            print(f"Ollama Streaming Failed: {e}. Falling back to Mock.")
+
+    # Mock fallback — yield the full response as a single chunk
+    yield get_mock_response(system_prompt, user_prompt)
+
+
+def query_llm_with_history(messages: list, temperature: float = 0.2) -> str:
+    """Queries LLM with a full messages array (system/user/assistant roles) for multi-turn context."""
+    
+    if MODEL_PROVIDER == "openai" and OPENAI_API_KEY:
+        try:
+            if OPENAI_API_KEY.startswith("sk-or-"):
+                client = OpenAI(
+                    api_key=OPENAI_API_KEY,
+                    base_url="https://openrouter.ai/api/v1",
+                    default_headers={
+                        "HTTP-Referer": "http://localhost:3000",
+                        "X-Title": "JARVIS OS Assistant"
+                    },
+                    http_client=httpx.Client(trust_env=False)
+                )
+                model = "openai/gpt-4o-mini" if MODEL_NAME == "gpt-4o-mini" else MODEL_NAME
+            else:
+                client = OpenAI(
+                    api_key=OPENAI_API_KEY,
+                    http_client=httpx.Client(trust_env=False)
+                )
+                model = MODEL_NAME
+
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"OpenAI/OpenRouter Query (with history) Failed: {e}. Falling back.")
+
+    # Try Ollama
+    if MODEL_PROVIDER == "ollama" or (MODEL_PROVIDER == "openai" and not OPENAI_API_KEY):
+        try:
+            target_model = MODEL_NAME if MODEL_NAME != "gpt-4o-mini" else "llama3"
+            check_and_pull_ollama_model(target_model)
+
+            url = f"{OLLAMA_HOST}/api/chat"
+            payload = {
+                "model": target_model,
+                "messages": messages,
+                "stream": False,
+                "options": {"temperature": temperature}
+            }
+            res = requests.post(url, json=payload, timeout=120)
+            if res.status_code == 200:
+                data = res.json()
+                return data["message"]["content"]
+        except Exception as e:
+            print(f"Ollama Query (with history) Failed: {e}. Falling back to Mock.")
+
+    # Mock fallback — extract the last user message for the mock
+    last_user = ""
+    system_prompt = ""
+    for msg in messages:
+        if msg["role"] == "user":
+            last_user = msg["content"]
+        elif msg["role"] == "system":
+            system_prompt = msg["content"]
+    return get_mock_response(system_prompt, last_user)
+
