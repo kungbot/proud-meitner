@@ -84,3 +84,19 @@ This roadmap compiles 15 advanced capabilities and design upgrades to transition
 ### 15. AI Executive Scheduler (Calendar & Email Integration)
 *   **Description**: Integration with Google Calendar and Microsoft 365.
 *   **Key Value**: Reads your daily agenda, alerts you of meeting slots, and drafts case-sensitive email replies.
+
+---
+
+## 🎨 Category 5: UI/UX Redesign & Aesthetics Paradigms
+
+### 16. Futuristic Cybernetic HUD Redesign
+*   **Description**: Redesign the frontend dashboard with highly detailed, animated cybernetic details (spinning concentric dials, grid scanlines, glowing neon accents, and modular cards).
+*   **Key Value**: Provides a premium sci-fi cockpit visual layout matching a high-tech computer system interface.
+
+### 17. Minimalist Glassmorphic Dashboard
+*   **Description**: Rebuild using clean layout guidelines with ultra-thin borders, deep backdrop filters (`backdrop-blur-md`), and unified monochrome typography.
+*   **Key Value**: A professional, elegant, and non-distracting layout that blends perfectly with modern windows operating system styling.
+
+### 18. Sound-Responsive Visualizer Variations
+*   **Description**: Support multiple visual styles for the 3D particle visualizer (e.g., standard particle sphere, audio frequency bars, ribbon waves, or a pulsing core reactor).
+*   **Key Value**: Choose your preferred AI core representation on the fly.
