@@ -119,6 +119,32 @@ class OrchestratorAgent:
         """Rule-based parser checked first for speed and reliability, falling back to LLM classifier."""
         q_lower = query.lower().strip()
         
+        # 0. Rule-based check: Git actions
+        if any(w in q_lower for w in ["commit changes", "commit my changes", "git commit", "push to git", "git push", "run git status", "git status", "git diff", "push changes"]):
+            action = "git_status"
+            if "commit" in q_lower:
+                action = "git_commit"
+            elif "push" in q_lower:
+                action = "git_push"
+            elif "diff" in q_lower:
+                action = "git_diff"
+                
+            commit_msg = None
+            if "with message" in q_lower:
+                parts = query.split("with message")
+                if len(parts) > 1:
+                    commit_msg = parts[1].strip().strip('"').strip("'")
+            elif "message is" in q_lower:
+                parts = query.split("message is")
+                if len(parts) > 1:
+                    commit_msg = parts[1].strip().strip('"').strip("'")
+            
+            return {
+                "intent": "system",
+                "confidence": 1.0,
+                "parameters": {"action": "git_flow", "git_action": action.replace("git_", ""), "commit_message": commit_msg}
+            }
+        
         # 1. Rule-based check: System actions
         if "open " in q_lower or "launch " in q_lower or any(w in q_lower for w in ["lock computer", "shutdown", "restart", "sleep", "volume", "cpu", "stats", "play", "pause", "skip", "next song", "previous song", "next track", "previous track", "briefing", "morning status", "daily briefing", "weather", "forecast"]):
             action = "get_stats"
@@ -233,7 +259,15 @@ class OrchestratorAgent:
         
         if intent == "system":
             action = params.get("action")
-            if action == "lock":
+            if action == "git_flow":
+                git_act = params.get("git_action", "status")
+                commit_msg = params.get("commit_message")
+                res = self.system.execute_git_flow(git_act, commit_msg)
+                if res.get("success"):
+                    return {"response": f"Git action execution succeeded:\n```\n{res.get('output')}\n```", "data": res}
+                else:
+                    return {"response": f"Git action failed:\n```\n{res.get('output')}\n```", "data": res}
+            elif action == "lock":
                 ok = self.system.lock_screen()
                 return {"response": "System locked successfully." if ok else "Failed to lock system.", "data": {"success": ok}}
             elif action == "shutdown":

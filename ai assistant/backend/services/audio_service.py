@@ -133,6 +133,32 @@ class AudioService:
         else:
             print("[TTS Mode Disabled or Missing Libraries]")
 
+    def play_hud_sfx(self, effect_name: str):
+        """Play small pre-configured mechanical HUD audio beeps using native PowerShell console beeps."""
+        def play():
+            import subprocess
+            ps_cmd = ""
+            if effect_name == "click":
+                ps_cmd = "[console]::beep(2000, 30)"
+            elif effect_name == "thinking_hum":
+                ps_cmd = "[console]::beep(400, 80); [console]::beep(450, 80)"
+            elif effect_name == "success":
+                ps_cmd = "[console]::beep(1200, 80); [console]::beep(1800, 150)"
+            elif effect_name == "startup":
+                ps_cmd = "[console]::beep(1000, 60); [console]::beep(1400, 60); [console]::beep(1800, 120)"
+            elif effect_name == "error":
+                ps_cmd = "[console]::beep(350, 250)"
+            else:
+                ps_cmd = "[console]::beep(1000, 50)"
+                
+            try:
+                subprocess.run(["powershell", "-Command", ps_cmd], capture_output=True)
+            except Exception as e:
+                print(f"Error playing HUD sfx {effect_name}: {e}")
+                
+        threading.Thread(target=play, daemon=True).start()
+
+
 
     def listen_for_speech(self, timeout: int = 5) -> str:
         """Capture microphone audio and perform standard recognition."""

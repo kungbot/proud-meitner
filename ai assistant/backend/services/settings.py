@@ -17,6 +17,7 @@ class SettingsService:
         "ollama_host": "http://127.0.0.1:11434",
         "elevenlabs_api_key": "",
         "elevenlabs_voice_id": "21m00Tcm4TlvDq8ikWAM",
+        "visualizer_style": "sphere",
     }
 
     def __init__(self):
@@ -41,6 +42,7 @@ class SettingsService:
             "ollama_host": os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434"),
             "elevenlabs_api_key": os.environ.get("ELEVENLABS_API_KEY", ""),
             "elevenlabs_voice_id": os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"),
+            "visualizer_style": os.environ.get("VISUALIZER_STYLE", "sphere"),
         }
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -124,6 +126,7 @@ class SettingsService:
             "tts_volume": "TTS_VOLUME",
             "elevenlabs_api_key": "ELEVENLABS_API_KEY",
             "elevenlabs_voice_id": "ELEVENLABS_VOICE_ID",
+            "visualizer_style": "VISUALIZER_STYLE",
         }
         config_attr = mapping.get(key)
         if config_attr:

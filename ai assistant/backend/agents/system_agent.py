@@ -388,3 +388,69 @@ class SystemAgent:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def execute_git_flow(self, action: str, message: str = None) -> dict:
+        """Execute automated Git operations like status, diff, commit, and push."""
+        import subprocess
+        from backend.utils.llm import query_llm
+        cwd = self.workspace_dir
+        
+        try:
+            if action == "status":
+                res = subprocess.run("git status", shell=True, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                return {"success": True, "output": res.stdout or res.stderr}
+            
+            elif action == "diff":
+                res = subprocess.run("git diff", shell=True, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                return {"success": True, "output": res.stdout or res.stderr}
+                
+            elif action in ["commit", "push", "commit_and_push"]:
+                # Check status/diff first
+                status_res = subprocess.run("git status --porcelain", shell=True, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                if not status_res.stdout.strip():
+                    # No changes to commit/push
+                    # Check if there are unpushed commits
+                    unpushed = subprocess.run("git cherry -v", shell=True, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                    if action in ["push", "commit_and_push"]:
+                        if unpushed.stdout.strip():
+                            # We have commits to push, let's push
+                            push_res = subprocess.run("git push", shell=True, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                            return {"success": push_res.returncode == 0, "output": f"Pushed unpushed commits.\n{push_res.stdout}\n{push_res.stderr}"}
+                        else:
+                            return {"success": True, "output": "Everything is up-to-date. No changes and no unpushed commits."}
+                    return {"success": True, "output": "No changes to commit."}
+                
+                # We have changes. Let's stage them first so we can diff staged
+                subprocess.run("git add -A", shell=True, cwd=cwd)
+                
+                # Get the staged diff to draft a commit message
+                diff_res = subprocess.run("git diff --cached", shell=True, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                diff_text = diff_res.stdout
+                
+                if not message:
+                    # Let's draft an AI commit message based on the diff
+                    sys_prompt = "You are JARVIS. Generate a concise, clear, and professional one-line git commit message based on the provided diff. Do not include any markdown quotes, just the message."
+                    user_prompt = f"Git diff:\n\n{diff_text[:4000]}"
+                    message = query_llm(sys_prompt, user_prompt).strip().strip('"').strip("'")
+                    if not message:
+                        message = "chore: update workspace files via JARVIS"
+                
+                # Commit
+                commit_res = subprocess.run(f'git commit -m "{message}"', shell=True, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                if commit_res.returncode != 0:
+                    return {"success": False, "output": f"Commit failed:\n{commit_res.stdout}\n{commit_res.stderr}"}
+                
+                output_str = f"Committed changes with message: '{message}'\n{commit_res.stdout}"
+                
+                if action in ["push", "commit_and_push"]:
+                    push_res = subprocess.run("git push", shell=True, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                    output_str += f"\nPush output:\n{push_res.stdout}\n{push_res.stderr}"
+                    return {"success": push_res.returncode == 0, "output": output_str}
+                
+                return {"success": True, "output": output_str}
+                
+        except Exception as e:
+            return {"success": False, "output": f"Error executing git flow: {str(e)}"}
+            
+        return {"success": False, "output": f"Unknown git action: {action}"}
+
+

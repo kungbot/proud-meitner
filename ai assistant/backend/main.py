@@ -80,6 +80,7 @@ def wake_word_callback():
             manager.broadcast({"type": "wake_word_detected", "state": "listening"}),
             loop
         )
+        audio.play_hud_sfx("click")
         # Play a soft alert TTS
         audio.speak("Yes, sir?")
     else:
@@ -88,13 +89,50 @@ def wake_word_callback():
 
 audio.on_wake_word_detected = wake_word_callback
 
+async def system_alerts_worker():
+    """Background monitoring task for CPU/RAM limits. Alerts user if exceeded."""
+    import psutil
+    import time
+    await asyncio.sleep(5)
+    last_alert = 0
+    while True:
+        try:
+            cpu = psutil.cpu_percent(interval=1)
+            mem = psutil.virtual_memory().percent
+            if cpu > 90.0 or mem > 85.0:
+                now = time.time()
+                # Throttled to at most once per 3 minutes
+                if now - last_alert > 180:
+                    alert_msg = f"Sir, hardware utilization alert. CPU is at {cpu:.0f}%, and Memory utilization is at {mem:.0f}%."
+                    await manager.broadcast({
+                        "type": "telemetry_alert",
+                        "cpu": cpu,
+                        "memory": mem,
+                        "message": alert_msg
+                    })
+                    audio.play_hud_sfx("error")
+                    audio.speak(alert_msg)
+                    last_alert = now
+        except Exception as e:
+            print(f"Error in telemetry alerts worker: {e}")
+        await asyncio.sleep(15)
+
 # Startup task
 @app.on_event("startup")
 def startup_event():
     # Start wake-word background thread
     audio.start_wake_word_detection()
+    # Play startup HUD chime
+    audio.play_hud_sfx("startup")
     # Speak startup greeting
     audio.speak("J.A.R.V.I.S. is online. All systems are fully operational.")
+    
+    # Start telemetry monitoring background loop
+    try:
+        loop = asyncio.get_event_loop()
+        loop.create_task(system_alerts_worker())
+    except Exception as e:
+        print(f"Failed to start telemetry worker task: {e}")
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -123,22 +161,31 @@ class SettingsRequest(BaseModel):
     ollama_host: str
     elevenlabs_api_key: str
     elevenlabs_voice_id: str
+    visualizer_style: str
 
 
 # HTTP API Endpoints
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
+    audio.play_hud_sfx("thinking_hum")
     result = await orchestrator.route_and_execute(req.query)
     # If successful response text is present, speak it asynchronously
     if result.get("status") == "success":
+        audio.play_hud_sfx("success")
         audio.speak(result.get("response", ""))
+    else:
+        audio.play_hud_sfx("error")
     return result
 
 @app.post("/api/confirm")
 async def confirm_endpoint(req: ConfirmRequest):
+    audio.play_hud_sfx("thinking_hum")
     result = await orchestrator.execute_confirmed_action(req.payload)
     if result.get("status") == "success":
+        audio.play_hud_sfx("success")
         audio.speak(result.get("response", ""))
+    else:
+        audio.play_hud_sfx("error")
     return result
 
 @app.get("/api/status")
@@ -173,6 +220,7 @@ async def chat_stream_endpoint(req: ChatRequest):
         # Log query
         orchestrator.memory.log_interaction("user", req.query)
         orchestrator.memory.log_task_status("Orchestrator", "thinking", f"Processing streaming query: {req.query}")
+        audio.play_hud_sfx("thinking_hum")
         
         intent_info = orchestrator.classify_intent(req.query)
         intent = intent_info.get("intent", "chat")
@@ -182,6 +230,7 @@ async def chat_stream_endpoint(req: ChatRequest):
         needs_confirm, action_type, details = orchestrator.check_security(intent, parameters)
         if needs_confirm:
             orchestrator.memory.log_task_status("Orchestrator", "waiting_approval", f"Requires approval: {details}")
+            audio.play_hud_sfx("click")
             yield f"data: {json.dumps({'type': 'confirmation', 'status': 'needs_confirmation', 'action_type': action_type, 'action_details': details, 'payload': {'intent': intent, 'parameters': parameters, 'query': req.query}})}\n\n"
             return
             
@@ -191,11 +240,13 @@ async def chat_stream_endpoint(req: ChatRequest):
                 response_text = result.get("response", "Action completed.")
                 orchestrator.memory.log_interaction("assistant", response_text)
                 orchestrator.memory.log_task_status("Orchestrator", "completed", f"Finished {intent} task.")
+                audio.play_hud_sfx("success")
                 yield f"data: {json.dumps({'type': 'result', 'status': 'success', 'intent': intent, 'response': response_text, 'data': result.get('data')})}\n\n"
                 audio.speak(response_text)
             except Exception as e:
                 err_msg = f"Failed to execute task: {str(e)}"
                 orchestrator.memory.log_task_status("Orchestrator", "failed", err_msg)
+                audio.play_hud_sfx("error")
                 yield f"data: {json.dumps({'type': 'error', 'status': 'error', 'response': f'Error: {str(e)}'})}\n\n"
         else:
             # Stream LLM chat fallback with active window context & semantic memory
@@ -238,10 +289,12 @@ async def chat_stream_endpoint(req: ChatRequest):
                 # Success
                 orchestrator.memory.log_interaction("assistant", full_response)
                 orchestrator.memory.log_task_status("Orchestrator", "completed", "Finished streaming chat task.")
+                audio.play_hud_sfx("success")
                 yield f"data: {json.dumps({'type': 'result', 'status': 'success', 'response': full_response})}\n\n"
             except Exception as e:
                 err_msg = f"Streaming failed: {str(e)}"
                 orchestrator.memory.log_task_status("Orchestrator", "failed", err_msg)
+                audio.play_hud_sfx("error")
                 yield f"data: {json.dumps({'type': 'error', 'status': 'error', 'response': f'Error: {str(e)}'})}\n\n"
  
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -334,6 +387,7 @@ async def voice_websocket(websocket: WebSocket):
             if msg_type == "start_listening":
                 # User wants Jarvis to record mic input
                 await websocket.send_json({"type": "status", "state": "listening"})
+                audio.play_hud_sfx("click")
                 
                 # Run mic in background thread to avoid locking FastAPI socket
                 loop = asyncio.get_event_loop()
@@ -343,10 +397,14 @@ async def voice_websocket(websocket: WebSocket):
                     await websocket.send_json({"type": "transcription", "text": transcription})
                     # Run orchestrator
                     await websocket.send_json({"type": "status", "state": "thinking"})
+                    audio.play_hud_sfx("thinking_hum")
                     result = await orchestrator.route_and_execute(transcription)
                     
                     if result.get("status") == "success":
+                        audio.play_hud_sfx("success")
                         audio.speak(result.get("response", ""))
+                    else:
+                        audio.play_hud_sfx("error")
                         
                     await websocket.send_json({
                         "type": "result",
@@ -355,6 +413,7 @@ async def voice_websocket(websocket: WebSocket):
                         "data": result.get("data")
                     })
                 else:
+                    audio.play_hud_sfx("error")
                     await websocket.send_json({"type": "error", "message": "No speech detected."})
                 
                 await websocket.send_json({"type": "status", "state": "idle"})
@@ -362,10 +421,14 @@ async def voice_websocket(websocket: WebSocket):
             elif msg_type == "chat_message":
                 text = data.get("text", "")
                 await websocket.send_json({"type": "status", "state": "thinking"})
+                audio.play_hud_sfx("thinking_hum")
                 result = await orchestrator.route_and_execute(text)
                 
                 if result.get("status") == "success":
+                    audio.play_hud_sfx("success")
                     audio.speak(result.get("response", ""))
+                else:
+                    audio.play_hud_sfx("error")
                     
                 await websocket.send_json({
                     "type": "result",

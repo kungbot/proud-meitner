@@ -40,3 +40,7 @@ ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWA
 # Server settings
 HOST = "127.0.0.1"
 PORT = 8000
+
+# Visualizer settings
+VISUALIZER_STYLE = os.environ.get("VISUALIZER_STYLE", "sphere")
+

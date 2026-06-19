@@ -22,6 +22,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState('');
   const [showElevenlabsApiKey, setShowElevenlabsApiKey] = useState(false);
   const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState('21m00Tcm4TlvDq8ikWAM');
+  const [visualizerStyle, setVisualizerStyle] = useState('sphere');
   
   const [elevenlabsVoices, setElevenlabsVoices] = useState<{id: string, name: string}[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
@@ -92,6 +93,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         setOllamaHost(data.ollama_host || 'http://127.0.0.1:11434');
         setElevenlabsApiKey(data.elevenlabs_api_key || '');
         setElevenlabsVoiceId(data.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM');
+        setVisualizerStyle(data.visualizer_style || 'sphere');
         
         if (data.elevenlabs_api_key) {
           loadElevenlabsVoices(data.elevenlabs_api_key);
@@ -136,6 +138,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           ollama_host: ollamaHost,
           elevenlabs_api_key: elevenlabsApiKey,
           elevenlabs_voice_id: elevenlabsVoiceId,
+          visualizer_style: visualizerStyle,
         }),
       });
       if (res.ok) {
@@ -374,6 +377,22 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                       onChange={(e) => setTtsVolume(parseFloat(e.target.value))}
                       className="accent-cyan-500 h-1 bg-slate-900 rounded-lg appearance-none cursor-pointer border border-slate-800"
                     />
+                  </div>
+
+                  {/* Visualizer Style */}
+                  <div className="flex flex-col space-y-1.5 border-t border-slate-900/60 pt-3">
+                    <label className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">
+                      Visualizer Theme Style
+                    </label>
+                    <select
+                      value={visualizerStyle}
+                      onChange={(e) => setVisualizerStyle(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors"
+                    >
+                      <option value="sphere">3D Particle Sphere</option>
+                      <option value="bars">Audio Frequency Bars</option>
+                      <option value="reactor">Pulsing Core Reactor</option>
+                    </select>
                   </div>
                 </form>
               )}

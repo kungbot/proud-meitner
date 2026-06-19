@@ -1,4 +1,5 @@
 import os
+import subprocess
 from pathlib import Path
 from backend.config import WORKSPACE_DIR
 from backend.utils.llm import query_llm
@@ -6,6 +7,37 @@ from backend.utils.llm import query_llm
 class CodingAgent:
     def __init__(self):
         self.workspace_dir = WORKSPACE_DIR
+
+    def _validate_code(self, file_path: Path) -> tuple[bool, str]:
+        """Runs compilation/syntax check on the code. Returns (is_valid, error_message)."""
+        ext = file_path.suffix.lower()
+        try:
+            if ext == ".py":
+                res = subprocess.run(
+                    ["python", "-m", "py_compile", str(file_path)],
+                    capture_output=True, text=True, encoding="utf-8", errors="ignore"
+                )
+                if res.returncode != 0:
+                    return False, res.stderr
+            elif ext in [".ts", ".tsx"]:
+                res = subprocess.run(
+                    ["npx", "tsc", "--noEmit", "--skipLibCheck", "--jsx", "react-jsx", "--target", "es6", str(file_path)],
+                    shell=True,
+                    capture_output=True, text=True, encoding="utf-8", errors="ignore"
+                )
+                if res.returncode != 0:
+                    return False, res.stdout or res.stderr
+            elif ext in [".js", ".jsx"]:
+                res = subprocess.run(
+                    ["node", "--check", str(file_path)],
+                    shell=True,
+                    capture_output=True, text=True, encoding="utf-8", errors="ignore"
+                )
+                if res.returncode != 0:
+                    return False, res.stderr
+        except Exception as e:
+            print(f"Validation command failed to run for {file_path.name}: {e}")
+        return True, ""
 
     def explain_code(self, file_path: str) -> str:
         """Reads a file and queries LLM to explain the logic."""
@@ -28,7 +60,7 @@ class CodingAgent:
             return f"Error explaining code: {e}"
 
     def refactor_code(self, file_path: str, instruction: str) -> str:
-        """Reads a file, queries LLM to refactor it, and overwrites the file with new content."""
+        """Reads a file, queries LLM to refactor it, and overwrites the file with new content after compilation checks."""
         full_path = Path(file_path)
         if not full_path.is_absolute():
             full_path = self.workspace_dir / full_path
@@ -51,11 +83,58 @@ class CodingAgent:
             # Clean LLM response (strip ```language blocks)
             lines = refactored_code.splitlines()
             if len(lines) > 0 and (lines[0].startswith("```") or lines[0].strip() == ""):
-                # Remove code blocks
                 cleaned_lines = [l for l in lines if not l.strip().startswith("```")]
                 refactored_code = "\n".join(cleaned_lines)
                 
-            # Write back
+            # Self-correction loop
+            max_attempts = 3
+            current_attempt = 1
+            is_valid = False
+            error_msg = ""
+            temp_path = full_path.parent / f"_temp_val_{full_path.name}"
+            
+            while current_attempt <= max_attempts:
+                # Write to temp path
+                with open(temp_path, 'w', encoding='utf-8') as f:
+                    f.write(refactored_code.strip())
+                
+                is_valid, error_msg = self._validate_code(temp_path)
+                if is_valid:
+                    break
+                    
+                print(f"Refactor self-correction attempt {current_attempt} failed: {error_msg}")
+                # Ask LLM to correct the code
+                correction_sys_prompt = (
+                    "You are JARVIS, an elite programming agent. The code you generated has compilation or syntax errors. "
+                    "Refactor the code to resolve the errors completely. "
+                    "Output ONLY the corrected code block. Do NOT include explanations, markdown format tags, or commentary outside the code block."
+                )
+                correction_user_prompt = (
+                    f"Original code that failed:\n```\n{refactored_code}\n```\n\n"
+                    f"Compiler Error:\n```\n{error_msg}\n```\n\n"
+                    "Please fix all errors and output the corrected version."
+                )
+                refactored_code = query_llm(correction_sys_prompt, correction_user_prompt)
+                
+                # Clean response
+                lines = refactored_code.splitlines()
+                if len(lines) > 0 and (lines[0].startswith("```") or lines[0].strip() == ""):
+                    cleaned_lines = [l for l in lines if not l.strip().startswith("```")]
+                    refactored_code = "\n".join(cleaned_lines)
+                    
+                current_attempt += 1
+                
+            # Clean up temp file
+            if temp_path.exists():
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+                    
+            if not is_valid:
+                return f"Coding agent failed to refactor code due to compiler errors after 3 attempts:\n```\n{error_msg}\n```"
+                
+            # Write back the finalized working code
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(refactored_code.strip())
                 
@@ -64,7 +143,7 @@ class CodingAgent:
             return f"Error refactoring code: {e}"
 
     def generate_component(self, target_file: str, tech_stack: str, details: str) -> str:
-        """Generates a code component and saves it to target_file path."""
+        """Generates a code component and saves it to target_file path after verification checks."""
         full_path = Path(target_file)
         if not full_path.is_absolute():
             full_path = self.workspace_dir / full_path
@@ -86,6 +165,55 @@ class CodingAgent:
                 cleaned_lines = [l for l in lines if not l.strip().startswith("```")]
                 code_result = "\n".join(cleaned_lines)
                 
+            # Self-correction loop
+            max_attempts = 3
+            current_attempt = 1
+            is_valid = False
+            error_msg = ""
+            temp_path = full_path.parent / f"_temp_val_{full_path.name}"
+            
+            while current_attempt <= max_attempts:
+                # Write to temp path
+                with open(temp_path, 'w', encoding='utf-8') as f:
+                    f.write(code_result.strip())
+                
+                is_valid, error_msg = self._validate_code(temp_path)
+                if is_valid:
+                    break
+                    
+                print(f"Generation self-correction attempt {current_attempt} failed: {error_msg}")
+                # Ask LLM to correct the code
+                correction_sys_prompt = (
+                    "You are JARVIS, an expert software developer. The code you generated has compilation or syntax errors. "
+                    "Refactor the code to resolve the errors completely. "
+                    "Output ONLY the corrected code block. Do NOT include explanations, markdown format tags, or commentary outside the code block."
+                )
+                correction_user_prompt = (
+                    f"Original code that failed:\n```\n{code_result}\n```\n\n"
+                    f"Compiler Error:\n```\n{error_msg}\n```\n\n"
+                    "Please fix all errors and output the corrected version."
+                )
+                code_result = query_llm(correction_sys_prompt, correction_user_prompt)
+                
+                # Clean response
+                lines = code_result.splitlines()
+                if len(lines) > 0 and (lines[0].startswith("```") or lines[0].strip() == ""):
+                    cleaned_lines = [l for l in lines if not l.strip().startswith("```")]
+                    code_result = "\n".join(cleaned_lines)
+                    
+                current_attempt += 1
+                
+            # Clean up temp file
+            if temp_path.exists():
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+                    
+            if not is_valid:
+                return f"Coding agent failed to generate component due to compiler errors after 3 attempts:\n```\n{error_msg}\n```"
+                
+            # Write finalized working code to target file
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(code_result.strip())
                 
