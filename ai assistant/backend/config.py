@@ -32,6 +32,9 @@ TESSERACT_CMD = os.environ.get("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR
 TTS_RATE = int(os.environ.get("TTS_RATE", 185))
 TTS_VOLUME = float(os.environ.get("TTS_VOLUME", 1.0))
 WAKE_WORDS = ["jarvis", "hey jarvis", "computer"]
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
+ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+
 
 # Server settings
 HOST = "127.0.0.1"

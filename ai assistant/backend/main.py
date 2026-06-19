@@ -120,6 +120,9 @@ class SettingsRequest(BaseModel):
     tts_rate: str
     tts_volume: str
     ollama_host: str
+    elevenlabs_api_key: str
+    elevenlabs_voice_id: str
+
 
 # HTTP API Endpoints
 @app.post("/api/chat")

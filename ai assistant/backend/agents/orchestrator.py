@@ -364,26 +364,74 @@ class OrchestratorAgent:
  
         elif intent == "coding":
             action = params.get("action", "")
+            
+            # Check if this coding request requires web research first
+            q_lower = original_query.lower()
+            needs_research = any(w in q_lower for w in ["research", "search", "latest", "documentation", "version", "online", "find out", "check web"])
+            
+            research_report = ""
+            search_query = ""
+            if needs_research:
+                try:
+                    refine_prompt = (
+                        "You are JARVIS, a system coordinator. Extract the single best Google search query "
+                        "to find documentation or specifications needed to fulfill the following programming request: "
+                        f"'{original_query}'. Output ONLY the search query string, no quotes or additional text."
+                    )
+                    search_query = query_llm(refine_prompt, original_query).strip().strip('"\'')
+                except Exception:
+                    search_query = original_query
+                
+                self.memory.log_task_status("Orchestrator", "thinking", f"Coordinating Agents: Researching '{search_query}' via Browser/Research Agent...")
+                research_report = await self.research.conduct_research(search_query)
+                self.memory.log_task_status("Orchestrator", "thinking", "Research complete. Injecting findings into Coding Agent...")
+
+            research_context = f"\n\n--- RESEARCH FINDINGS & DOCUMENTATION ---\n{research_report}\n-----------------------------------------\n" if research_report else ""
+
             if "explain" in original_query.lower() or action == "explain":
                 path = params.get("file_path")
                 explanation = self.coding.explain_code(path)
-                return {"response": explanation, "data": {}}
+                if research_report:
+                    response_text = f"### Coordinated Agent Plan completed:\n\n1. **Research Agent** researched '{search_query}'\n2. **Coding Agent** explained code in context of those findings.\n\n---\n\n{explanation}\n\n**Research Context:**\n{research_report}"
+                else:
+                    response_text = explanation
+                return {"response": response_text, "data": {}}
             elif "refactor" in original_query.lower() or action == "refactor":
                 path = params.get("file_path")
                 instr = params.get("instruction", "improve readability")
-                res = self.coding.refactor_code(path, instr)
-                return {"response": res, "data": {}}
+                enriched_instr = f"{instr}{research_context}"
+                res = self.coding.refactor_code(path, enriched_instr)
+                if research_report:
+                    response_text = f"### Coordinated Agent Plan completed:\n\n1. **Research Agent** researched '{search_query}' to find specifications.\n2. **Coding Agent** refactored code using those specifications.\n\n---\n\n{res}"
+                else:
+                    response_text = res
+                return {"response": response_text, "data": {}}
             elif "dashboard" in original_query.lower() or "component" in original_query.lower():
                 path = params.get("file_path", "src/components/DashboardCard.tsx")
                 stack = params.get("tech_stack", "React, TypeScript, Tailwind CSS")
                 details = params.get("details", original_query)
-                res = self.coding.generate_component(path, stack, details)
-                return {"response": res, "data": {}}
+                enriched_details = f"{details}{research_context}"
+                res = self.coding.generate_component(path, stack, enriched_details)
+                if research_report:
+                    response_text = f"### Coordinated Agent Plan completed:\n\n1. **Research Agent** researched '{search_query}' for latest patterns.\n2. **Coding Agent** generated the component incorporating those patterns.\n\n---\n\n{res}"
+                else:
+                    response_text = res
+                return {"response": response_text, "data": {}}
             else:
                 proj_name = params.get("project_name", "new-app")
                 p_type = params.get("project_type", "nextjs")
                 res = self.coding.create_project_structure(proj_name, p_type)
-                return {"response": res, "data": {}}
+                if research_report:
+                    try:
+                        readme_path = self.files.workspace_dir / proj_name / "RESEARCH.md"
+                        self.files.create_file(str(readme_path), research_report)
+                        res += f"\n\nSaved research report to {proj_name}/RESEARCH.md"
+                    except Exception:
+                        pass
+                    response_text = f"### Coordinated Agent Plan completed:\n\n1. **Research Agent** researched specifications.\n2. **Coding Agent** scaffolded the project structure and saved findings.\n\n---\n\n{res}"
+                else:
+                    response_text = res
+                return {"response": response_text, "data": {}}
  
         elif intent == "research":
             report = await self.research.conduct_research(original_query)

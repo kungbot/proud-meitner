@@ -18,6 +18,9 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [ttsRate, setTtsRate] = useState(185);
   const [ttsVolume, setTtsVolume] = useState(1.0);
   const [ollamaHost, setOllamaHost] = useState('http://127.0.0.1:11434');
+  const [elevenlabsApiKey, setElevenlabsApiKey] = useState('');
+  const [showElevenlabsApiKey, setShowElevenlabsApiKey] = useState(false);
+  const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState('21m00Tcm4TlvDq8ikWAM');
   
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -51,6 +54,8 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         setTtsRate(parseInt(data.tts_rate) || 185);
         setTtsVolume(parseFloat(data.tts_volume) || 1.0);
         setOllamaHost(data.ollama_host || 'http://127.0.0.1:11434');
+        setElevenlabsApiKey(data.elevenlabs_api_key || '');
+        setElevenlabsVoiceId(data.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM');
       }
     } catch (e) {
       showToast('error', 'Configuration Load Failure', 'Unable to fetch current settings from FastAPI core.');
@@ -88,6 +93,8 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           tts_rate: ttsRate.toString(),
           tts_volume: ttsVolume.toString(),
           ollama_host: ollamaHost,
+          elevenlabs_api_key: elevenlabsApiKey,
+          elevenlabs_voice_id: elevenlabsVoiceId,
         }),
       });
       if (res.ok) {
@@ -223,6 +230,36 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                         ))}
                       </datalist>
                     </div>
+                  </div>
+
+                  {/* ElevenLabs Settings */}
+                  <div className="flex flex-col space-y-1.5 border-t border-slate-900/60 pt-3">
+                    <label className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">
+                      ElevenLabs Voice Engine
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showElevenlabsApiKey ? 'text' : 'password'}
+                        value={elevenlabsApiKey}
+                        onChange={(e) => setElevenlabsApiKey(e.target.value)}
+                        placeholder="ElevenLabs API Key"
+                        className="w-full bg-slate-950 border border-slate-800 rounded pl-3 pr-10 py-2 text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors placeholder-slate-650"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowElevenlabsApiKey(!showElevenlabsApiKey)}
+                        className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-350 transition"
+                      >
+                        {showElevenlabsApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={elevenlabsVoiceId}
+                      onChange={(e) => setElevenlabsVoiceId(e.target.value)}
+                      placeholder="Voice ID (e.g. 21m00Tcm4TlvDq8ikWAM)"
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors placeholder-slate-650"
+                    />
                   </div>
 
                   {/* TTS Rate */}

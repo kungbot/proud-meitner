@@ -14,6 +14,8 @@ class SettingsService:
         "tts_rate": "185",
         "tts_volume": "1.0",
         "ollama_host": "http://127.0.0.1:11434",
+        "elevenlabs_api_key": "",
+        "elevenlabs_voice_id": "21m00Tcm4TlvDq8ikWAM",
     }
 
     def __init__(self):
@@ -35,6 +37,8 @@ class SettingsService:
             "tts_rate": os.environ.get("TTS_RATE", "185"),
             "tts_volume": os.environ.get("TTS_VOLUME", "1.0"),
             "ollama_host": os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434"),
+            "elevenlabs_api_key": os.environ.get("ELEVENLABS_API_KEY", ""),
+            "elevenlabs_voice_id": os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"),
         }
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -115,6 +119,8 @@ class SettingsService:
             "ollama_host": "OLLAMA_HOST",
             "tts_rate": "TTS_RATE",
             "tts_volume": "TTS_VOLUME",
+            "elevenlabs_api_key": "ELEVENLABS_API_KEY",
+            "elevenlabs_voice_id": "ELEVENLABS_VOICE_ID",
         }
         config_attr = mapping.get(key)
         if config_attr:

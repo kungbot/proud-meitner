@@ -64,8 +64,63 @@ class AudioService:
                 text = self.tts_queue.get()
                 if text is None:
                     break
-                self.tts_engine.say(text)
-                self.tts_engine.runAndWait()
+                
+                # Check ElevenLabs setting
+                import backend.config as config
+                if config.ELEVENLABS_API_KEY:
+                    try:
+                        import requests
+                        headers = {
+                            "xi-api-key": config.ELEVENLABS_API_KEY,
+                            "Content-Type": "application/json"
+                        }
+                        data = {
+                            "text": text,
+                            "model_id": "eleven_monolingual_v1",
+                            "voice_settings": {
+                                "stability": 0.5,
+                                "similarity_boost": 0.75
+                            }
+                        }
+                        voice_id = config.ELEVENLABS_VOICE_ID or "21m00Tcm4TlvDq8ikWAM"
+                        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+                        
+                        response = requests.post(url, json=data, headers=headers, timeout=20)
+                        if response.status_code == 200:
+                            import tempfile
+                            temp_dir = tempfile.gettempdir()
+                            temp_file_path = os.path.join(temp_dir, f"jarvis_speak_{int(time.time())}.mp3")
+                            with open(temp_file_path, "wb") as f:
+                                f.write(response.content)
+                                
+                            ps_code = f"""
+                            $player = New-Object -ComObject WMPlayer.OCX
+                            $player.url = '{temp_file_path.replace("'", "''")}'
+                            $player.controls.play()
+                            $timeout = 250
+                            while ($player.playState -ne 1 -and $timeout -gt 0) {{
+                                Start-Sleep -Milliseconds 100
+                                $timeout--
+                            }}
+                            """
+                            import subprocess
+                            subprocess.run(["powershell", "-Command", ps_code], capture_output=True)
+                            try:
+                                os.remove(temp_file_path)
+                            except Exception:
+                                pass
+                            
+                            self.tts_queue.task_done()
+                            continue
+                        else:
+                            print(f"ElevenLabs TTS API error: {response.status_code} - {response.text}")
+                    except Exception as e:
+                        print(f"Failed to use ElevenLabs TTS: {e}. Falling back to pyttsx3.")
+
+                # Fallback to local pyttsx3
+                if PYTTSX3_AVAILABLE:
+                    self.tts_engine.say(text)
+                    self.tts_engine.runAndWait()
                 self.tts_queue.task_done()
             except Exception as e:
                 print(f"TTS Worker execution error: {e}")
