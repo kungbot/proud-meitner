@@ -120,14 +120,14 @@ class OrchestratorAgent:
         q_lower = query.lower().strip()
         
         # 1. Rule-based check: System actions
-        if any(w in q_lower for w in ["lock computer", "shutdown", "restart", "sleep", "volume", "cpu", "stats", "open chrome", "open vs code", "launch", "play", "pause", "skip", "next song", "previous song", "next track", "previous track", "briefing", "morning status", "daily briefing", "weather", "forecast"]):
+        if "open " in q_lower or "launch " in q_lower or any(w in q_lower for w in ["lock computer", "shutdown", "restart", "sleep", "volume", "cpu", "stats", "play", "pause", "skip", "next song", "previous song", "next track", "previous track", "briefing", "morning status", "daily briefing", "weather", "forecast"]):
             action = "get_stats"
             if "lock" in q_lower: action = "lock"
             elif "shutdown" in q_lower: action = "shutdown"
             elif "restart" in q_lower: action = "restart"
             elif "sleep" in q_lower: action = "sleep"
             elif "volume" in q_lower: action = "set_volume"
-            elif "open" in q_lower or "launch" in q_lower: action = "launch_app"
+            elif "open " in q_lower or "launch " in q_lower or "open" in q_lower or "launch" in q_lower: action = "launch_app"
             elif any(w in q_lower for w in ["play", "pause", "skip", "next song", "previous song", "next track", "previous track"]): action = "control_media"
             elif any(w in q_lower for w in ["briefing", "morning status", "daily briefing"]): action = "briefing"
             elif "weather" in q_lower or "forecast" in q_lower: action = "weather"
@@ -139,7 +139,16 @@ class OrchestratorAgent:
                 if word.isdigit():
                     vol_lvl = int(word)
                     
-            app_name = "chrome" if "chrome" in q_lower else "code" if "code" in q_lower or "visual studio" in q_lower else ""
+            app_name = ""
+            if action == "launch_app":
+                if "open " in q_lower:
+                    app_name = q_lower.split("open ", 1)[-1].strip()
+                elif "launch " in q_lower:
+                    app_name = q_lower.split("launch ", 1)[-1].strip()
+                else:
+                    app_name = q_lower.replace("jarvis", "").replace("travis", "").replace("open", "").replace("launch", "").strip()
+            else:
+                app_name = "chrome" if "chrome" in q_lower else "code" if "code" in q_lower or "visual studio" in q_lower else ""
             
             media_action = "play"
             if "pause" in q_lower: media_action = "pause"

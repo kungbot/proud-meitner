@@ -109,27 +109,67 @@ class SystemAgent:
             return {"cpu": 0, "memory_percent": 0, "disk_percent": 0, "processes": []}
 
     def launch_app(self, app_name: str, path_or_command: str = None) -> bool:
-        """Launch common desktop applications."""
+        """Launch common desktop applications, with dynamic Start Menu search fallback."""
         try:
-            app_name = app_name.lower().strip()
-            if app_name in ["chrome", "google chrome"]:
+            app_name_clean = app_name.lower().strip()
+            if not app_name_clean:
+                return False
+            if app_name_clean in ["chrome", "google chrome"]:
                 subprocess.Popen(["cmd.exe", "/c", "start chrome"], shell=True)
-            elif app_name in ["code", "vs code", "visual studio code"]:
+                return True
+            elif app_name_clean in ["code", "vs code", "visual studio code"]:
                 subprocess.Popen(["cmd.exe", "/c", "code ."], shell=True, cwd=str(self.workspace_dir))
-            elif app_name in ["discord"]:
+                return True
+            elif app_name_clean in ["discord"]:
                 subprocess.Popen(["cmd.exe", "/c", "start discord"], shell=True)
-            elif app_name in ["terminal", "cmd", "powershell"]:
+                return True
+            elif app_name_clean in ["terminal", "cmd", "powershell"]:
                 subprocess.Popen(["cmd.exe", "/c", "start cmd.exe"], shell=True, cwd=str(self.workspace_dir))
-            elif path_or_command:
-                # Custom app path or command
+                return True
+            
+            if path_or_command:
                 subprocess.Popen(path_or_command, shell=True)
-            else:
-                # Try starting via shell
-                subprocess.Popen(f"start {app_name}", shell=True)
+                return True
+                
+            # Search Start Menu for a shortcut
+            shortcut_path = self._find_windows_shortcut(app_name)
+            if shortcut_path:
+                print(f"Launching app via shortcut: {shortcut_path}")
+                os.startfile(shortcut_path)
+                return True
+                
+            # Final fallback
+            subprocess.Popen(f"start {app_name}", shell=True)
             return True
         except Exception as e:
             print(f"Error launching {app_name}: {e}")
             return False
+
+    def _find_windows_shortcut(self, app_name: str) -> str:
+        """Search the Windows Start Menu programs for a shortcut matching the app name."""
+        import os
+        from pathlib import Path
+        
+        search_paths = [
+            Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+            Path(os.environ.get("ALLUSERSPROFILE", r"C:\ProgramData")) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+        ]
+        
+        app_name_lower = app_name.lower().strip()
+        if not app_name_lower:
+            return None
+            
+        for start_path in search_paths:
+            if not start_path.exists():
+                continue
+            for root, dirs, files in os.walk(start_path):
+                for file in files:
+                    if file.lower().endswith(".lnk"):
+                        name_without_ext = file[:-4].lower()
+                        if app_name_lower in name_without_ext or name_without_ext in app_name_lower:
+                            return str(Path(root) / file)
+        return None
+
 
     def close_app(self, process_name: str) -> bool:
         """Close processes by name."""
