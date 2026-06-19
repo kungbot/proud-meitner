@@ -116,35 +116,11 @@ class OrchestratorAgent:
             }
 
     def classify_intent(self, query: str) -> dict:
-        """LLM classifier or rule-based parser fallback."""
-        system_prompt = (
-            "You are the central intent classifier for JARVIS. Categorize the user request into one of the following intents:\n"
-            "1. 'system' - power controls (lock, sleep, shutdown, restart), volume control, stats, process killing, launching custom apps, executing terminal commands, media playback control, morning/daily briefings.\n"
-            "2. 'file' - create, delete, list directory, search files, rename, move, organize folder.\n"
-            "3. 'coding' - create project structure, refactor files, explain code, create react/next.js dashboard component.\n"
-            "4. 'research' - web search, summarize articles, compare technologies.\n"
-            "5. 'browser' - web browsing tasks, fill forms.\n"
-            "6. 'memory' - store facts, retrieve user preferences (e.g. 'Remember that...', 'What project am I working on?').\n"
-            "7. 'chat' - general conversation or talk.\n\n"
-            "You must output a JSON object with: {'intent': '<name>', 'confidence': <0-1>, 'parameters': {<extracted entities>}}.\n"
-            "Valid actions for 'system': 'lock', 'shutdown', 'restart', 'sleep', 'set_volume', 'get_stats', 'launch_app', 'close_app', 'run_command', 'screenshot', 'control_media', 'briefing'.\n"
-            "Valid actions for 'file': 'create', 'delete', 'list', 'search', 'rename', 'move', 'organize'.\n"
-            "Format the parameters cleanly (e.g. app_name, volume_level, file_path, query_term, tech_stack, media_action).\n"
-            "For 'control_media', media_action must be 'play', 'pause', 'next', or 'prev'."
-        )
-        try:
-            llm_res = query_llm(system_prompt, query)
-            # Find JSON block
-            start = llm_res.find("{")
-            end = llm_res.rfind("}") + 1
-            if start != -1 and end != -1:
-                return json.loads(llm_res[start:end])
-        except Exception as e:
-            print(f"LLM Classification error: {e}")
-            
-        # Regex/rule-based fallback
-        q_lower = query.lower()
-        if any(w in q_lower for w in ["lock computer", "shutdown", "restart", "sleep", "volume", "cpu", "stats", "open chrome", "open vs code", "launch", "play", "pause", "skip", "next song", "previous song", "next track", "previous track", "briefing", "morning status", "daily briefing"]):
+        """Rule-based parser checked first for speed and reliability, falling back to LLM classifier."""
+        q_lower = query.lower().strip()
+        
+        # 1. Rule-based check: System actions
+        if any(w in q_lower for w in ["lock computer", "shutdown", "restart", "sleep", "volume", "cpu", "stats", "open chrome", "open vs code", "launch", "play", "pause", "skip", "next song", "previous song", "next track", "previous track", "briefing", "morning status", "daily briefing", "weather", "forecast"]):
             action = "get_stats"
             if "lock" in q_lower: action = "lock"
             elif "shutdown" in q_lower: action = "shutdown"
@@ -154,8 +130,8 @@ class OrchestratorAgent:
             elif "open" in q_lower or "launch" in q_lower: action = "launch_app"
             elif any(w in q_lower for w in ["play", "pause", "skip", "next song", "previous song", "next track", "previous track"]): action = "control_media"
             elif any(w in q_lower for w in ["briefing", "morning status", "daily briefing"]): action = "briefing"
+            elif "weather" in q_lower or "forecast" in q_lower: action = "weather"
             
-            # Extract volume number
             vol_lvl = 50
             for word in q_lower.split():
                 if word.endswith("%"):
@@ -170,12 +146,20 @@ class OrchestratorAgent:
             elif "skip" in q_lower or "next" in q_lower: media_action = "next"
             elif "prev" in q_lower: media_action = "prev"
             
+            location = ""
+            if action == "weather":
+                if " in " in q_lower:
+                    location = q_lower.split(" in ", 1)[-1].strip("? .!").title()
+                elif " for " in q_lower:
+                    location = q_lower.split(" for ", 1)[-1].strip("? .!").title()
+            
             return {
                 "intent": "system",
-                "confidence": 0.8,
-                "parameters": {"action": action, "volume_level": vol_lvl, "app_name": app_name, "media_action": media_action}
+                "confidence": 1.0,
+                "parameters": {"action": action, "volume_level": vol_lvl, "app_name": app_name, "media_action": media_action, "location": location}
             }
             
+        # 2. Rule-based check: File actions
         if any(w in q_lower for w in ["find", "search files", "organize downloads", "delete file", "create file", "list folder"]):
             action = "search"
             if "delete" in q_lower: action = "delete"
@@ -185,23 +169,53 @@ class OrchestratorAgent:
             
             return {
                 "intent": "file",
-                "confidence": 0.8,
+                "confidence": 1.0,
                 "parameters": {"action": action}
             }
             
-        if any(w in q_lower for w in ["remember", "what is my", "recall", "memorize"]):
+        # 3. Rule-based check: Memory actions
+        if any(w in q_lower for w in ["remember that", "what is my", "recall", "memorize"]):
             return {
                 "intent": "memory",
-                "confidence": 0.9,
+                "confidence": 1.0,
                 "parameters": {"action": "store" if "remember" in q_lower else "retrieve"}
             }
             
+        # 4. Rule-based check: Research queries
         if any(w in q_lower for w in ["research", "summarize", "search the web", "compare"]):
             return {
                 "intent": "research",
-                "confidence": 0.8,
+                "confidence": 1.0,
                 "parameters": {"query_term": query}
             }
+
+        # 5. Fallback: LLM Classification for complex queries
+        system_prompt = (
+            "You are the central intent classifier for JARVIS. Categorize the user request into one of the following intents:\n"
+            "1. 'system' - power controls (lock, sleep, shutdown, restart), volume control, stats, process killing, launching custom apps, executing terminal commands, media playback control, morning/daily briefings, local weather telemetry.\n"
+            "2. 'file' - create, delete, list directory, search files, rename, move, organize folder.\n"
+            "3. 'coding' - create project structure, refactor files, explain code, create react/next.js dashboard component.\n"
+            "4. 'research' - web search, summarize articles, compare technologies.\n"
+            "5. 'browser' - web browsing tasks, fill forms.\n"
+            "6. 'memory' - store facts, retrieve user preferences (e.g. 'Remember that...', 'What project am I working on?').\n"
+            "7. 'chat' - general conversation or talk.\n\n"
+            "You must output a JSON object with: {'intent': '<name>', 'confidence': <0-1>, 'parameters': {<extracted entities>}}.\n"
+            "Valid actions for 'system': 'lock', 'shutdown', 'restart', 'sleep', 'set_volume', 'get_stats', 'launch_app', 'close_app', 'run_command', 'screenshot', 'control_media', 'briefing', 'weather'.\n"
+            "Valid actions for 'file': 'create', 'delete', 'list', 'search', 'rename', 'move', 'organize'.\n"
+            "Format the parameters cleanly (e.g. app_name, volume_level, file_path, query_term, tech_stack, media_action, location).\n"
+            "For 'control_media', media_action must be 'play', 'pause', 'next', or 'prev'."
+        )
+        try:
+            llm_res = query_llm(system_prompt, query)
+            # Find JSON block
+            start = llm_res.find("{")
+            end = llm_res.rfind("}") + 1
+            if start != -1 and end != -1:
+                return json.loads(llm_res[start:end])
+        except Exception as e:
+            print(f"LLM Classification error: {e}")
+            
+        return {"intent": "chat", "confidence": 1.0, "parameters": {}}
             
         return {"intent": "chat", "confidence": 1.0, "parameters": {}}
 
@@ -292,6 +306,12 @@ class OrchestratorAgent:
                         "tasks": recent_tasks
                     }
                 }
+            elif action == "weather":
+                loc = params.get("location")
+                res = self.system.get_weather(loc)
+                if res.get("success"):
+                    return {"response": res.get("summary"), "data": res}
+                return {"response": f"I couldn't retrieve the weather report: {res.get('error')}", "data": res}
                 
         elif intent == "file":
             action = params.get("action")

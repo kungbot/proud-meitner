@@ -10,6 +10,10 @@ python -m pip install -r "ai assistant/backend/requirements.txt"
 if %ERRORLEVEL% neq 0 (
     echo Python dependency installation failed. Please check your python settings.
 )
+echo.
+echo Installing Playwright Chromium browser...
+python -m playwright install chromium
+
 
 echo.
 echo [2/4] Generating tray icon...

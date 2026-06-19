@@ -287,3 +287,64 @@ class SystemAgent:
         # Sort by mtime descending and return top 5
         recent_files = sorted(recent_files, key=lambda x: x.get("modified_at", ""), reverse=True)
         return recent_files[:5]
+
+    def get_weather(self, location: str = None) -> dict:
+        """Fetch weather data for current location (from IP) or a specific city, without any API keys."""
+        import requests
+        try:
+            lat, lon, city = None, None, "your location"
+            if not location:
+                # Get current location via ip-api
+                geo_res = requests.get("http://ip-api.com/json/", timeout=5)
+                if geo_res.status_code == 200:
+                    geo_data = geo_res.json()
+                    if geo_data.get("status") == "success":
+                        lat = geo_data.get("lat")
+                        lon = geo_data.get("lon")
+                        city = geo_data.get("city", "your location")
+            else:
+                # Geocode specified city using Open-Meteo geocoding api (free, no key)
+                geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={location}&count=1&language=en&format=json"
+                geo_res = requests.get(geo_url, timeout=5)
+                if geo_res.status_code == 200:
+                    results = geo_res.json().get("results", [])
+                    if results:
+                        lat = results[0].get("latitude")
+                        lon = results[0].get("longitude")
+                        city = results[0].get("name", location)
+
+            if lat is not None and lon is not None:
+                # Query Open-Meteo for current weather
+                weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&temperature_unit=celsius"
+                weather_res = requests.get(weather_url, timeout=5)
+                if weather_res.status_code == 200:
+                    data = weather_res.json().get("current_weather", {})
+                    temp = data.get("temperature")
+                    wind = data.get("windspeed")
+                    code = data.get("weathercode", 0)
+                    
+                    # Simple weather code mapping
+                    weather_desc = {
+                        0: "clear sky", 1: "mainly clear", 2: "partly cloudy", 3: "overcast",
+                        45: "foggy", 48: "depositing rime fog",
+                        51: "light drizzle", 53: "moderate drizzle", 55: "dense drizzle",
+                        61: "slight rain", 63: "moderate rain", 65: "heavy rain",
+                        71: "slight snow fall", 73: "moderate snow fall", 75: "heavy snow fall",
+                        77: "snow grains", 80: "slight rain showers", 81: "moderate rain showers",
+                        82: "violent rain showers", 85: "slight snow showers", 86: "heavy snow showers",
+                        95: "thunderstorm", 96: "thunderstorm with slight hail", 99: "thunderstorm with heavy hail"
+                    }
+                    condition = weather_desc.get(code, "unknown conditions")
+                    
+                    return {
+                        "success": True,
+                        "location": city,
+                        "temperature": temp,
+                        "wind_speed": wind,
+                        "condition": condition,
+                        "summary": f"The weather in {city} is currently {temp}°C with {condition}."
+                    }
+            return {"success": False, "error": "Could not determine location coordinates."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
