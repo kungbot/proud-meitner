@@ -1,18 +1,22 @@
-# 🎙️ JARVIS AI Assistant v2.3.0
+# 🎙️ JARVIS AI Assistant v2.4.0
 
 An advanced, multi-agent AI desktop assistant featuring a premium glassmorphic HUD visualizer, real-time voice interaction, semantic memory, active window/situational context tracking, and live system analytics.
+
+![JARVIS HUD Mockup](jarvis_hud_mockup.png)
 
 ---
 
 ## ✨ Features
 
-- **🔴 Siri-Style Waveform Visualizer**: High-performance audio waveform and orbital ring visualization that responds dynamically to audio levels and agent states.
+- **🕸️ 3D Three.js HUD Visualizer**: High-performance 3D WebGL particle sphere visualizer that responds dynamically to real-time microphone volume (Web Audio API) and tilts interactively on mouse move.
+- **🎙️ ElevenLabs Voice Integration**: Real-time ultra-realistic cloned voice feedback with settings panel key manager and seamless offline local fallback.
+- **🧠 Complex Multi-Agent Chaining**: Intelligent orchestrator-level coordination that chains agent behaviors (e.g. performing web research to gather documentation, then feeding it directly into the coding agent).
+- **📂 Workspace Scraper**: Automatically scans active workspace files to build contextual briefings of recent code alterations.
+- **⚡ Priority Rule-Based Routing**: Instant processing for local system commands (weather telemetry, volume adjustments, application launches) bypassing slow LLM classification steps.
 - **🧠 Semantic Long-Term Memory (RAG)**: A persistent SQLite-backed memory system. JARVIS can automatically remember facts, store user preferences, and fetch contextually relevant memories on the fly.
 - **🖥️ Desktop HUD Dashboard**: Open the visual dashboard instantly using the global hotkey (`Ctrl + Space`) or interact using voice-only commands.
 - **📊 Real-time Telemetry & Diagnostics**: Live trackers for CPU, RAM, and disk utilization with smooth animated meters, including listing top memory-consuming processes.
-- **🔍 AI-Synthesized Research Agent**: Conducts web searches, scrapes target web pages, and synthesizes clean, formatted markdown reports using LLM capabilities.
 - **🛡️ Intent Classification & Security Guard**: Classifies queries into intents (system, browser, code, memory, chat). Critical commands require user confirmation before executing.
-- **⚙️ Hot-Reloadable Settings**: Dynamically update models (supports OpenAI, OpenRouter, and local Ollama), API keys, TTS speed/volume, and hosts directly from the UI settings panel without restart.
 
 ---
 
@@ -33,7 +37,7 @@ graph TD
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Framer Motion, Lucide React, `react-markdown`, `remark-gfm`.
+- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Three.js, Framer Motion, Lucide React, `react-markdown`, `remark-gfm`.
 - **Backend**: FastAPI (Python), PyAudio, SQLite, OpenAI / OpenRouter / Ollama API clients.
 - **Desktop Shell**: Electron.
 
