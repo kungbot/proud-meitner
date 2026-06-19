@@ -545,9 +545,21 @@ class OrchestratorAgent:
             if facts:
                 semantic_memories_text = "\n[Retrieved Context & Saved Facts]\n" + "\n".join(f"- {f}" for f in facts) + "\n"
 
+        # Check if user's name is saved in the memory database
+        user_name = "Sir"
+        saved_name = self.memory.retrieve_memory("my name")
+        if not saved_name:
+            saved_name = self.memory.retrieve_memory("user name")
+        if not saved_name:
+            saved_name = self.memory.retrieve_memory("name")
+            
+        if saved_name:
+            user_name = saved_name
+
         system_prompt = (
             "You are JARVIS, the legendary AI desktop companion. Respond to the user's query naturally, showing context-aware, helpful, "
-            "and polite intelligence. Keep responses relatively concise and punchy, as they are spoken or displayed on a desktop screen.\n"
+            f"and polite intelligence. The user's name is '{user_name}'. Refer to them by name or call them by their name when appropriate in your responses. "
+            "Keep responses relatively concise and punchy, as they are spoken or displayed on a desktop screen.\n"
             f"{active_window_text}"
             f"{semantic_memories_text}"
         )
