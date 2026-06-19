@@ -27,7 +27,7 @@ interface MetricsPanelProps {
 
 export default function MetricsPanel({ stats, orbState }: MetricsPanelProps) {
   return (
-    <section className="w-80 border-r border-slate-900/60 flex flex-col p-4 bg-slate-950/20 overflow-y-auto space-y-6 shrink-0 z-10">
+    <section className="w-80 h-full border-r border-slate-900/60 flex flex-col p-4 bg-slate-950/20 overflow-y-auto space-y-6 shrink-0 z-10">
       
       {/* Animated AI Reactor Core Widget */}
       <div className="glass-panel-hud p-6 rounded tech-corners flex flex-col items-center justify-center relative overflow-hidden group border border-cyan-500/10">
