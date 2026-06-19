@@ -116,7 +116,7 @@ export default function MetricsPanel({ stats, orbState }: MetricsPanelProps) {
       </div>
 
       {/* Top Running Processes */}
-      <div className="glass-panel-hud p-4 rounded tech-corners space-y-2.5 border border-cyan-500/10 flex-1 flex flex-col overflow-hidden">
+      <div className="glass-panel-hud p-4 rounded tech-corners space-y-2.5 border border-cyan-500/10 shrink-0 flex flex-col overflow-hidden h-[180px]">
         <div className="tech-corners-inner" />
         <h4 className="high-tech-font text-[9px] font-bold uppercase tracking-widest text-cyan-400 flex items-center space-x-1.5 select-none shrink-0">
           <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
@@ -140,6 +140,9 @@ export default function MetricsPanel({ stats, orbState }: MetricsPanelProps) {
           ))}
         </div>
       </div>
+
+      {/* Spacer to prevent bottom padding collapse in scrollable viewport */}
+      <div className="h-4 shrink-0" />
     </section>
   );
 }
