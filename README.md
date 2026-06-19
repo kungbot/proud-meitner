@@ -4,7 +4,8 @@ An advanced, multi-agent AI desktop assistant featuring a premium glassmorphic H
 
 ![JARVIS HUD Mockup](jarvis_hud_mockup.png)
 
----
+---<img width="1195" height="764" alt="{6AF64456-EBB3-4089-BC2A-A208A5657765}" src="https://github.com/user-attachments/assets/fb36ac36-1c8b-4465-9d92-3160053c6d3d" />
+
 
 ## ✨ Features
 
