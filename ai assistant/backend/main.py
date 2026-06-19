@@ -267,6 +267,29 @@ async def update_settings(req: SettingsRequest):
         settings_service.update_setting(key, str(val))
     return {"status": "success"}
 
+@app.get("/api/settings/voices")
+async def get_elevenlabs_voices(api_key: str = None):
+    if not api_key:
+        api_key = settings_service.get_setting("elevenlabs_api_key")
+    if not api_key or api_key == "undefined":
+        return {"voices": []}
+    import requests
+    try:
+        url = "https://api.elevenlabs.io/v1/voices"
+        headers = {"xi-api-key": api_key}
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            voices_data = response.json().get("voices", [])
+            return {
+                "voices": [
+                    {"id": v["voice_id"], "name": v["name"]}
+                    for v in voices_data
+                ]
+            }
+        return {"voices": [], "error": f"API status {response.status_code}"}
+    except Exception as e:
+        return {"voices": [], "error": str(e)}
+
 @app.get("/api/models")
 async def get_models():
     provider = settings_service.get_setting("model_provider")

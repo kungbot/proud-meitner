@@ -22,6 +22,9 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showElevenlabsApiKey, setShowElevenlabsApiKey] = useState(false);
   const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState('21m00Tcm4TlvDq8ikWAM');
   
+  const [elevenlabsVoices, setElevenlabsVoices] = useState<{id: string, name: string}[]>([]);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -42,6 +45,37 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     }
   }, [provider, isOpen]);
 
+  // Fetch ElevenLabs voices when key changes
+  useEffect(() => {
+    if (isOpen && elevenlabsApiKey && elevenlabsApiKey.length > 20) {
+      const delayDebounce = setTimeout(() => {
+        loadElevenlabsVoices(elevenlabsApiKey);
+      }, 800);
+      return () => clearTimeout(delayDebounce);
+    } else {
+      setElevenlabsVoices([]);
+    }
+  }, [elevenlabsApiKey, isOpen]);
+
+  const loadElevenlabsVoices = async (apiKeyToUse: string) => {
+    if (!apiKeyToUse || apiKeyToUse.trim() === '') {
+      setElevenlabsVoices([]);
+      return;
+    }
+    setIsLoadingVoices(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/settings/voices?api_key=${encodeURIComponent(apiKeyToUse)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setElevenlabsVoices(data.voices || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch ElevenLabs voices:', e);
+    } finally {
+      setIsLoadingVoices(false);
+    }
+  };
+
   const loadSettings = async () => {
     setIsLoading(true);
     try {
@@ -56,6 +90,10 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         setOllamaHost(data.ollama_host || 'http://127.0.0.1:11434');
         setElevenlabsApiKey(data.elevenlabs_api_key || '');
         setElevenlabsVoiceId(data.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM');
+        
+        if (data.elevenlabs_api_key) {
+          loadElevenlabsVoices(data.elevenlabs_api_key);
+        }
       }
     } catch (e) {
       showToast('error', 'Configuration Load Failure', 'Unable to fetch current settings from FastAPI core.');
@@ -233,9 +271,10 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   </div>
 
                   {/* ElevenLabs Settings */}
-                  <div className="flex flex-col space-y-1.5 border-t border-slate-900/60 pt-3">
-                    <label className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">
-                      ElevenLabs Voice Engine
+                  <div className="flex flex-col space-y-2 border-t border-slate-900/60 pt-3">
+                    <label className="text-slate-400 font-bold uppercase text-[9px] tracking-wider flex justify-between items-center">
+                      <span>ElevenLabs Voice Engine</span>
+                      {isLoadingVoices && <span className="text-cyan-500 animate-pulse text-[8px]">Fetching voices...</span>}
                     </label>
                     <div className="relative">
                       <input
@@ -253,6 +292,28 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                         {showElevenlabsApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+
+                    {elevenlabsVoices.length > 0 && (
+                      <div className="flex flex-col space-y-1">
+                        <select
+                          value={elevenlabsVoices.some(v => v.id === elevenlabsVoiceId) ? elevenlabsVoiceId : 'custom'}
+                          onChange={(e) => {
+                            if (e.target.value !== 'custom') {
+                              setElevenlabsVoiceId(e.target.value);
+                            }
+                          }}
+                          className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors"
+                        >
+                          <option value="custom">-- Choose a voice or enter custom ID --</option>
+                          {elevenlabsVoices.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     <input
                       type="text"
                       value={elevenlabsVoiceId}
