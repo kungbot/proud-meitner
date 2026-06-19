@@ -380,34 +380,57 @@ function DashboardContent() {
     }
   };
 
+  // State-aware glow borders
+  const stateGlowMap = {
+    idle: 'border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.05)]',
+    listening: 'border-red-500/40 shadow-[0_0_25px_rgba(239,68,68,0.15)]',
+    thinking: 'border-amber-500/45 shadow-[0_0_25px_rgba(245,158,11,0.15)]',
+    executing: 'border-emerald-500/40 shadow-[0_0_25px_rgba(16,185,129,0.15)]',
+    speaking: 'border-cyan-400/40 shadow-[0_0_25px_rgba(6,182,212,0.15)]',
+  };
+  const activeGlow = stateGlowMap[orbState] || stateGlowMap.idle;
+
   return (
-    <div className="w-screen h-screen flex flex-col bg-slate-950 overflow-hidden text-slate-200 border border-slate-800 relative">
+    <div className={`w-screen h-screen flex flex-col bg-[#030712] overflow-hidden text-slate-200 border-2 transition-all duration-700 relative ${activeGlow}`}>
+      {/* Animated Scan Grid Overlay */}
+      <div className="absolute inset-0 cyber-grid pointer-events-none opacity-40 z-0" />
+
       {/* 1. High Tech Header (Draggable) */}
-      <header className="h-12 border-b border-slate-800 drag-region flex items-center justify-between px-4 bg-slate-950/80 z-20 shrink-0">
-        <div className="flex items-center space-x-2">
+      <header className="h-12 border-b border-slate-900 drag-region flex items-center justify-between px-4 bg-slate-950/80 backdrop-blur-md z-20 shrink-0 relative">
+        {/* Dynamic Neon top accent line */}
+        <div 
+          className="absolute top-0 left-0 right-0 h-[2px] transition-all duration-700 bg-gradient-to-r"
+          style={{
+            backgroundImage: `linear-gradient(to right, transparent, ${
+              orbState === 'idle' ? '#06b6d4' : orbState === 'listening' ? '#ef4444' : orbState === 'thinking' ? '#f59e0b' : '#10b981'
+            }, transparent)`
+          }}
+        />
+
+        <div className="flex items-center space-x-2 no-drag">
           <Terminal className="w-5 h-5 text-cyan-400 animate-pulse" />
-          <span className="high-tech-font font-bold text-sm tracking-widest text-cyan-400">JARVIS OS HUD</span>
-          <span className="text-[10px] text-slate-500 font-mono">v2.0.0</span>
+          <span className="high-tech-font font-bold text-xs tracking-widest text-cyan-400 uppercase text-neon-glow-cyan">JARVIS Tactical Interface</span>
+          <span className="text-[9px] text-slate-500 font-mono">v2.5.0</span>
         </div>
 
         {/* Dynamic status nodes */}
-        <div className="flex items-center space-x-6 text-[10px] font-mono no-drag">
-          <div className="flex items-center space-x-1.5">
+        <div className="flex items-center space-x-6 text-[9px] font-mono no-drag select-none">
+          <div className="flex items-center space-x-1.5 bg-slate-900/60 border border-slate-800/80 px-2.5 py-1 rounded">
             <span
-              className={`w-2 h-2 rounded-full ${
+              className={`w-2 h-2 rounded-full transition-colors duration-500 ${
                 orbState === 'idle'
-                  ? 'bg-cyan-500'
+                  ? 'bg-cyan-500 shadow-[0_0_8px_#06b6d4]'
                   : orbState === 'listening'
-                  ? 'bg-red-500 animate-ping'
+                  ? 'bg-red-500 shadow-[0_0_8px_#ef4444] animate-pulse'
                   : orbState === 'thinking'
-                  ? 'bg-amber-500'
-                  : 'bg-emerald-500'
+                  ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'
+                  : 'bg-emerald-500 shadow-[0_0_8px_#10b981]'
               } `}
             />
-            <span className="uppercase text-slate-400">Core: {orbState}</span>
+            <span className="uppercase text-slate-400">Core Engine: {orbState}</span>
           </div>
-          <div className="text-slate-400">
-            WS_DIR: <span className="text-cyan-600 font-bold">proud-meitner</span>
+          <div className="text-slate-450 hidden md:block">
+            WORKSPACE: <span className="text-cyan-500 font-bold">proud-meitner</span>
           </div>
         </div>
 
@@ -445,7 +468,7 @@ function DashboardContent() {
       </header>
 
       {/* 2. Main content region */}
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex overflow-hidden z-10 relative">
         {/* Left Panel: Metrics & Reactor Core */}
         <MetricsPanel stats={stats} orbState={orbState} />
 
@@ -461,7 +484,7 @@ function DashboardContent() {
       </main>
 
       {/* 3. Bottom HUD Panel: Memory storage manager & task logs */}
-      <footer className="h-48 border-t border-slate-900 grid grid-cols-2 bg-slate-950/60 font-mono text-[10px] shrink-0">
+      <footer className="h-48 border-t border-slate-900 grid grid-cols-2 bg-slate-950/40 backdrop-blur-sm font-mono text-[9px] shrink-0 z-10 relative">
         <MemoryPanel
           memories={memories}
           onDeleteMemory={handleDeleteMemory}
