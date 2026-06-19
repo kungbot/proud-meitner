@@ -67,7 +67,7 @@ class AudioService:
                 
                 # Check ElevenLabs setting
                 import backend.config as config
-                if config.ELEVENLABS_API_KEY:
+                if config.TTS_PROVIDER == "elevenlabs" and config.ELEVENLABS_API_KEY:
                     try:
                         import requests
                         headers = {

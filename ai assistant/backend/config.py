@@ -29,6 +29,7 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 TESSERACT_CMD = os.environ.get("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 
 # Voice config
+TTS_PROVIDER = os.environ.get("TTS_PROVIDER", "local")  # local (pyttsx3) or elevenlabs
 TTS_RATE = int(os.environ.get("TTS_RATE", 185))
 TTS_VOLUME = float(os.environ.get("TTS_VOLUME", 1.0))
 WAKE_WORDS = ["jarvis", "hey jarvis", "computer"]

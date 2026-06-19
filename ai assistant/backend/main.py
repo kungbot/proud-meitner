@@ -117,6 +117,7 @@ class SettingsRequest(BaseModel):
     model_provider: str
     model_name: str
     openai_api_key: str
+    tts_provider: str
     tts_rate: str
     tts_volume: str
     ollama_host: str
