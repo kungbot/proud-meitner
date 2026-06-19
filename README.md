@@ -1,4 +1,4 @@
-# 🎙️ JARVIS AI Assistant v2.4.0
+# 🎙️ JARVIS AI Assistant v2.6.0
 
 An advanced, multi-agent AI desktop assistant featuring a premium glassmorphic HUD visualizer, real-time voice interaction, semantic memory, active window/situational context tracking, and live system analytics.
 
@@ -12,6 +12,11 @@ An advanced, multi-agent AI desktop assistant featuring a premium glassmorphic H
 - **🕸️ 3D Three.js HUD Visualizer**: High-performance 3D WebGL particle sphere visualizer that responds dynamically to real-time microphone volume (Web Audio API) and tilts interactively on mouse move.
 - **🎙️ ElevenLabs Voice Integration**: Real-time ultra-realistic cloned voice feedback with settings panel key manager, a selector dropdown to toggle between offline local voice (`pyttsx3`) and ElevenLabs cloud voice, and seamless offline local fallback.
 - **🧠 Complex Multi-Agent Chaining**: Intelligent orchestrator-level coordination that chains agent behaviors (e.g. performing web research to gather documentation, then feeding it directly into the coding agent).
+- **📂 Automated Git Assistant**: Stages files, uses diffs to draft AI-synthesized commit messages, commits, and pushes automatically to git on voice or text commands.
+- **🔄 Coding Self-Correction Loop**: Validates generated code via syntax compiling (`tsc`, `py_compile`, or `node --check`) in a temporary sandbox. Auto-refactors code dynamically on error up to 2 times before target file write.
+- **⚡ Proactive Telemetry Alerts**: Background hardware monitor that broadcasts alerts and speaks voice warnings if CPU or memory load exceeds safety limits.
+- **🔊 Spatial HUD Sound Effects**: cyber-HUD mechanical console beep chimes (clicks, sweeps, thinking hums, success chimes) played asynchronously during agent state transitions.
+- **🕸️ Sound-Responsive Visualizer Themes**: settings selector dropdown to switch the 3D Orb style between a Particle Sphere, Audio Frequency Bars, or a Concentric Ring Core Reactor.
 - **📂 Workspace Scraper**: Automatically scans active workspace files to build contextual briefings of recent code alterations.
 - **⚡ Priority Rule-Based Routing**: Instant processing for local system commands (weather telemetry, volume adjustments, application launches) bypassing slow LLM classification steps.
 - **🧠 Semantic Long-Term Memory (RAG)**: A persistent SQLite-backed memory system. JARVIS can automatically remember facts, store user preferences, and fetch contextually relevant memories on the fly.
